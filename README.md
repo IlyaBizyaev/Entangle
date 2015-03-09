@@ -1,6 +1,6 @@
 # Entangle
 ![Entangle Logo](http://entangle.ucoz.net/Ent2.png)
-![Windows](http://entangle.ucoz.net/windows_screenshot.jpg) ![Ubuntu](http://entangle.ucoz.net/ubuntu_screenshot.jpg)
+![Windows](http://entangle.ucoz.net/windows_screenshot.jpg) ![Ubuntu](http://entangle.ucoz.net/ubuntu_screenshot.png)
 ## Description
 Entangle is a simple application, designed to help users protect their private and personal data in a few clicks.
 Entangle is built using wxWidgets and Crypto++ libraries, which makes it cross-platform.
