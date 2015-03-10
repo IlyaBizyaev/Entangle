@@ -276,7 +276,11 @@ void EntangleDialog::Process(wxString first, const SecByteBlock & key)
     {
         fstream In, Out;
         //Renaming file
+        #ifdef __WIN32__
+        size_t cut = first.find_last_of('\\');
+        #else
         size_t cut = first.find_last_of('/');
+        #endif // __WIN32__
         wxString temp_path = first.substr(0, cut+1)+"TMP.TMP";
         if(!SmartRename(first, temp_path)) return;
         //Opening files
