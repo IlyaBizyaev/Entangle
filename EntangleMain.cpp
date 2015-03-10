@@ -39,7 +39,10 @@
 using namespace std;
 using namespace CryptoPP;
 
-long GetFolderSize(wxString path); //Works on Unix
+#ifdef __WIN32__
+unsigned long long GetFolderSize(wxString SrcPath);
+#endif // __WIN32__
+unsigned long long GetFileSize(wxString path); //Works on Unix
 bool IsANum(char);
 void AddError(wxString, wxString);
 bool SmartRemove(wxString path);
@@ -61,7 +64,7 @@ struct Header
     byte keys[32];              /* AES-256 key storage area */
 };
 
-class CRYPTOPP_DLL SecByteBlockSink : public Bufferless<Sink>
+class SecByteBlockSink : public Bufferless<Sink>
 {
 public:
     SecByteBlockSink(SecByteBlock& sbb) : m_sbb(sbb) { }
@@ -196,10 +199,10 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& event)
     }
     //If there are Dir-Control tasks
     for(size_t i=0; i<choice.GetCount(); ++i)
-        Total+=GetFolderSize(choice[i]);
+        Total+=GetFileSize(choice[i]);
     //If there are Drag&Drop tasks
     for(size_t i=0; i<drop_files.GetCount(); ++i)
-        Total+=GetFolderSize(drop_files[i]);
+        Total+=GetFileSize(drop_files[i]);
 
     StaticText2->SetLabelText(_("Waiting...")); wxYield();
     ProgressDialog1 = new wxProgressDialog(_("Progress"), _("Starting..."), 100, this);
@@ -250,8 +253,8 @@ void EntangleDialog::Process(wxString first, const SecByteBlock & key)
             if(fname!="."&&fname!="..")
                 Process(first+"/"+fname, key);
 		} while(FindNextFile(h, &f));
+		CloseHandle(h);
 	}
-	CloseHandle(h);
     #else
     DIR *dir = opendir(first.c_str()); //Dir opening attempt
     wxASSERT(Total!=0);
@@ -486,8 +489,53 @@ void EntangleDialog::Process(wxString first, const SecByteBlock & key)
     return;
 }
 
+#ifdef __WIN32__
+unsigned long long GetFileSize(wxString SrcPath)
+{
+    WIN32_FIND_DATA f;
+    HANDLE h = FindFirstFile(SrcPath.c_str(), &f);
+    if (h!=INVALID_HANDLE_VALUE)
+    {
+        if(f.dwFileAttributes == 16)
+        {
+            FindClose(h);
+            return GetFolderSize(SrcPath);
+        }
+        long long nFileLen = 0;
+        nFileLen =(f.nFileSizeHigh * (MAXDWORD+1)) + f.nFileSizeLow;
+        FindClose(h);
+        return nFileLen;
+    }
+    else
+        return -1;
+}
 
-long GetFolderSize(wxString path)
+unsigned long long GetFolderSize(wxString SrcPath)
+{
+      HANDLE h;
+      WIN32_FIND_DATA f;
+      DWORDLONG Result=0;
+
+      h = FindFirstFile((SrcPath+"\\*.*").c_str(), &f);
+      if (h == INVALID_HANDLE_VALUE) return 0;
+      wxString temp;
+      do
+      {
+          temp = f.cFileName;
+        if((temp!=".")&&(temp!=".."))
+        {
+            if(f.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                Result += GetFolderSize(SrcPath+"\\"+wxString(f.cFileName));
+            else
+                Result = Result + ((DWORDLONG)f.nFileSizeHigh<<32) + f.nFileSizeLow;
+        }
+
+      }while(FindNextFile(h, &f));
+      FindClose(h);
+      return (unsigned long long) Result;
+}
+#else
+unsigned long long GetFileSize(wxString path)
 {
     FILE* pipe = popen(wxString("du -b -s \"" + path + "\"").c_str(), "r");
     if(!pipe) return -1;
@@ -509,6 +557,8 @@ long GetFolderSize(wxString path)
     temp.ToLong(&lresult);
     return lresult;
 }
+#endif // __WIN32__
+
 
 void EntangleDialog::UpdateProgress()
 {
