@@ -2,7 +2,7 @@
  * Name:      EntangleMain.cpp
  * Purpose:   Code for Application Frame
  * Author:    Ilya Bizyaev (bizyaev.game@yandex.ru)
- * Created:   2015-01-06
+ * Created:   2015-01-01
  * Copyright: Ilya Bizyaev (utor.ucoz.ru)
  * License:   GNU GPL v3
  **************************************************************/
@@ -39,15 +39,15 @@
 using namespace std;
 using namespace CryptoPP;
 
-long long GetFileSize(wxString SrcPath);
-unsigned long long GetFolderSize(wxString SrcPath);
+long GetFolderSize(wxString path); //Works on Unix
+bool IsANum(char);
 void AddError(wxString, wxString);
 bool SmartRemove(wxString path);
 bool SmartRename(wxString before, wxString after);
 
 int NumFiles=0, ShowProgress=0;
 unsigned long long Total=0, NumBytes=0;
-bool NowWorking=false;
+bool NowWorking=false; bool ShouldDecrypt = false;
 locale current("");
 wxArrayString drop_files, mistakes;
 wxString show_str="Starting...";
@@ -61,7 +61,7 @@ struct Header
     byte keys[32];              /* AES-256 key storage area */
 };
 
-class SecByteBlockSink : public Bufferless<Sink>
+class CRYPTOPP_DLL SecByteBlockSink : public Bufferless<Sink>
 {
 public:
     SecByteBlockSink(SecByteBlock& sbb) : m_sbb(sbb) { }
@@ -79,11 +79,9 @@ private:
 };
 
 //(*InternalHeaders(EntangleDialog)
-#include <wx/intl.h>
 #include <wx/string.h>
+#include <wx/intl.h>
 //*)
-
-
 
 //(*IdInit(EntangleDialog)
 const long EntangleDialog::ID_STATICTEXT1 = wxNewId();
@@ -92,8 +90,8 @@ const long EntangleDialog::ID_STATICTEXT2 = wxNewId();
 const long EntangleDialog::ID_TEXTCTRL1 = wxNewId();
 const long EntangleDialog::ID_BUTTON2 = wxNewId();
 const long EntangleDialog::ID_BUTTON1 = wxNewId();
-const long EntangleDialog::ID_PROGRESSDIALOG1 = wxNewId();
 const long EntangleDialog::ID_MESSAGEDIALOG1 = wxNewId();
+const long EntangleDialog::ID_PROGRESSDIALOG1 = wxNewId();
 //*)
 
 BEGIN_EVENT_TABLE(EntangleDialog,wxDialog)
@@ -107,7 +105,7 @@ public:
     DroppedFilesReciever(EntangleDialog * g_dialog) {dialog=g_dialog;}
     bool OnDropFiles(wxCoord x, wxCoord y, const wxArrayString &filenames)
     {
-        drop_files.assign(filenames.begin(), filenames.end());
+        for(unsigned int i=0; i<filenames.GetCount(); ++i) drop_files.push_back(filenames[i]);
         dialog->StaticText2->SetLabelText(_("Received ")+wxString::FromDouble(drop_files.GetCount())+_(" file(s)"));
         return true;
     }
@@ -117,12 +115,12 @@ private:
 
 
 //wxDIRCTRL_MULTIPLE
-// _("Simple application for protecting\nyour personal data\n(C) Ilya Bizyaev, 2015")+"\nbizyaev@lyceum62.ru"
+//_("Simple application for protecting\nyour personal data\n(C) Ilya Bizyaev, 2015")+"\nbizyaev@lyceum62.ru"
 EntangleDialog::EntangleDialog(wxWindow* parent,wxWindowID id)
 {
     //(*Initialize(EntangleDialog)
-    wxBoxSizer* BoxSizer1;
     wxFlexGridSizer* FlexGridSizer1;
+    wxBoxSizer* BoxSizer1;
 
     Create(parent, wxID_ANY, _("Entangle"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE, _T("wxID_ANY"));
     SetFocus();
@@ -131,7 +129,7 @@ EntangleDialog::EntangleDialog(wxWindow* parent,wxWindowID id)
     FlexGridSizer1->Add(StaticText1, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     GenericDirCtrl1 = new wxGenericDirCtrl(this, ID_GENERICDIRCTRL1, wxEmptyString, wxDefaultPosition, wxSize(190,190), wxDIRCTRL_MULTIPLE, wxEmptyString, 0, _T("ID_GENERICDIRCTRL1"));
     FlexGridSizer1->Add(GenericDirCtrl1, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, wxDLG_UNIT(this,wxSize(5,0)).GetWidth());
-    StaticText2 = new wxStaticText(this, ID_STATICTEXT2, _("Enter the password:"), wxDefaultPosition, wxSize(140,13), wxALIGN_CENTRE, _T("ID_STATICTEXT2"));
+    StaticText2 = new wxStaticText(this, ID_STATICTEXT2, _("Enter the password:"), wxDefaultPosition, wxDefaultSize, wxALIGN_CENTRE, _T("ID_STATICTEXT2"));
     FlexGridSizer1->Add(StaticText2, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     TextCtrl1 = new wxTextCtrl(this, ID_TEXTCTRL1, wxEmptyString, wxDefaultPosition, wxSize(150,28), 0, wxDefaultValidator, _T("ID_TEXTCTRL1"));
     FlexGridSizer1->Add(TextCtrl1, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
@@ -161,6 +159,7 @@ EntangleDialog::~EntangleDialog()
     //(*Destroy(EntangleDialog)
     //*)
 }
+
 
 void EntangleDialog::OnAbout(wxCommandEvent& event)
 {
@@ -197,10 +196,10 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& event)
     }
     //If there are Dir-Control tasks
     for(size_t i=0; i<choice.GetCount(); ++i)
-        Total+=GetFileSize(choice[i]);
+        Total+=GetFolderSize(choice[i]);
     //If there are Drag&Drop tasks
     for(size_t i=0; i<drop_files.GetCount(); ++i)
-        Total+=GetFileSize(drop_files[i]);
+        Total+=GetFolderSize(drop_files[i]);
 
     StaticText2->SetLabelText(_("Waiting...")); wxYield();
     ProgressDialog1 = new wxProgressDialog(_("Progress"), _("Starting..."), 100, this);
@@ -236,6 +235,7 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& event)
 
 void EntangleDialog::Process(wxString first, const SecByteBlock & key)
 {
+    #ifdef __WIN32__
     WIN32_FIND_DATA f;
     HANDLE h = FindFirstFile(wxString(first+"/*").wc_str() , &f);
     wxASSERT(Total!=0);
@@ -251,11 +251,29 @@ void EntangleDialog::Process(wxString first, const SecByteBlock & key)
                 Process(first+"/"+fname, key);
 		} while(FindNextFile(h, &f));
 	}
-	else//////////////////FILE//////////////////
-	{
-		fstream In, Out;
+	CloseHandle(h);
+    #else
+    DIR *dir = opendir(first.c_str()); //Dir opening attempt
+    wxASSERT(Total!=0);
+    if(dir)/////////////////FOLDER/////////////////
+    {
+        struct dirent *ent; //For reading filenames
+        wxString fname; //Name of current file
+        while((ent = readdir(dir))!=NULL) //While there are files
+        {
+            fname=ent->d_name; //For easiness
+            //Not this folder, not outer one and not a backup
+            if(fname!="."&&fname!=".."&&fname.find('~')==wxString::npos)
+                Process(first+"/"+fname, key);
+        }
+        closedir(dir);
+    }///////////////////////////////////////////////
+    #endif // __WIN32__
+    else//////////////////FILE//////////////////////
+    {
+        fstream In, Out;
         //Renaming file
-        size_t cut = first.find_last_of('\\');
+        size_t cut = first.find_last_of('/');
         wxString temp_path = first.substr(0, cut+1)+"TMP.TMP";
         if(!SmartRename(first, temp_path)) return;
         //Opening files
@@ -342,14 +360,14 @@ void EntangleDialog::Process(wxString first, const SecByteBlock & key)
             }
 
             /** CFB Mode Processing **/
-            CFB_Mode<AES>::Decryption * cfbDecryption = new CFB_Mode<AES>::Decryption(DecryptedHeader.keys, 32, iv);
+            CFB_Mode<AES>::Decryption cfbDecryption(DecryptedHeader.keys, 32, iv);
             byte transfer[BUF_SIZE];
             fsize = DecryptedHeader.file_size; dleft = fsize%BUF_SIZE;
             checker = fsize-dleft;
             for(unsigned long i=0; i<checker; i+=BUF_SIZE)
             {
                 In.read((char*)&transfer, BUF_SIZE);
-                cfbDecryption->ProcessData((byte*)&transfer, (byte*)&transfer, BUF_SIZE);
+                cfbDecryption.ProcessData((byte*)&transfer, (byte*)&transfer, BUF_SIZE);
                 Out.write(reinterpret_cast<const char*>(&transfer), BUF_SIZE);
                 NumBytes+=BUF_SIZE;
                 wxTheApp->Yield();
@@ -358,13 +376,12 @@ void EntangleDialog::Process(wxString first, const SecByteBlock & key)
             if(dleft!=0)
             {
                 In.read((char*)&transfer, BUF_SIZE);
-                cfbDecryption->ProcessData((byte*)&transfer, (byte*)&transfer, BUF_SIZE);
+                cfbDecryption.ProcessData((byte*)&transfer, (byte*)&transfer, BUF_SIZE);
                 Out.write(reinterpret_cast<const char*>(&transfer), dleft);
                 NumBytes+=dleft;
                 wxTheApp->Yield();
                 UpdateProgress();
             }
-            delete cfbDecryption;
 
         }
         else
@@ -395,15 +412,15 @@ void EntangleDialog::Process(wxString first, const SecByteBlock & key)
                 //Setting user key and random IV
                 e.SetKeyWithIV(key.BytePtr(), key.SizeInBytes(), iv, sizeof(iv));
                 //Creating SecByteBlock for the header
-                //SecByteBlock blockky(0x00, 0);
+                SecByteBlock blockky(0x00, 0);
                 //Filter with a SecByteBlockSink
-                /*AuthenticatedEncryptionFilter ef(e,
-                new SecByteBlockSink(blockky), false, TAG_SIZE);*/
+                AuthenticatedEncryptionFilter ef(e,
+                new SecByteBlockSink(blockky), false, TAG_SIZE);
                 //Encrypting MakeHeader
-                //ef.ChannelPut("", (const byte*)&MakeHeader, sizeof(MakeHeader));
-                //ef.ChannelMessageEnd("");
+                ef.ChannelPut("", (const byte*)&MakeHeader, sizeof(MakeHeader));
+                ef.ChannelMessageEnd("");
                 //Writing SecByteBlock
-                //Out.write(reinterpret_cast<const char*>(blockky.BytePtr()), blockky.SizeInBytes());
+                Out.write(reinterpret_cast<const char*>(blockky.BytePtr()), blockky.SizeInBytes());
             }
             catch(CryptoPP::BufferedTransformation::NoChannelSupport& e)
             {
@@ -431,7 +448,7 @@ void EntangleDialog::Process(wxString first, const SecByteBlock & key)
 
             /** CFB Mode Processing **/
             //Create Encryption
-            CFB_Mode<AES>::Encryption * cfbEncryption = new CFB_Mode<AES>::Encryption(file_keys, 32, iv);
+            CFB_Mode<AES>::Encryption cfbEncryption(file_keys, 32, iv);
             byte transfer[BUF_SIZE];
             dleft = fsize%BUF_SIZE;
             checker = fsize-dleft;
@@ -439,7 +456,7 @@ void EntangleDialog::Process(wxString first, const SecByteBlock & key)
             for(unsigned long i=0; i<checker; i+=BUF_SIZE)
             {
                 In.read((char*)&transfer, BUF_SIZE);
-                cfbEncryption->ProcessData((byte*)&transfer, (byte*)&transfer, BUF_SIZE);
+                cfbEncryption.ProcessData((byte*)&transfer, (byte*)&transfer, BUF_SIZE);
                 Out.write(reinterpret_cast<const char*>(&transfer), BUF_SIZE);
                 NumBytes+=BUF_SIZE;
                 wxTheApp->Yield();
@@ -449,32 +466,48 @@ void EntangleDialog::Process(wxString first, const SecByteBlock & key)
             {
                 rnd.GenerateBlock(transfer, BUF_SIZE);
                 In.read((char*)&transfer, dleft);
-                cfbEncryption->ProcessData((byte*)&transfer, (byte*)&transfer, BUF_SIZE);
+                cfbEncryption.ProcessData((byte*)&transfer, (byte*)&transfer, BUF_SIZE);
                 Out.write(reinterpret_cast<const char*>(&transfer), BUF_SIZE);
                 NumBytes+=dleft;
                 wxTheApp->Yield();
                 UpdateProgress();
             }
-            delete cfbEncryption;
 
         }
         /** <<<<<<< FINISHED MAIN PART >>>>>>> **/
         In.close(); Out.close();
-        if(remove(temp_path.c_str())!=0)
+        if(!SmartRemove(temp_path))
         {
-            h = FindFirstFile(wxString(temp_path).wc_str() , &f);
-            if(f.dwFileAttributes & FILE_ATTRIBUTE_READONLY)
-            {
-                SetFileAttributes(wxString(temp_path).wc_str(), FILE_ATTRIBUTE_NORMAL);
-                remove(temp_path.c_str());
-            }
-            else
-                AddError(first, "BAD_TEMP_DELETE");
+            AddError(first, "BAD_TEMP_DELETE");
             return;
         }
-        ++NumFiles; UpdateProgress(); CloseHandle(h);
-	}
+        ++NumFiles;
+    }
     return;
+}
+
+
+long GetFolderSize(wxString path)
+{
+    FILE* pipe = popen(wxString("du -b -s \"" + path + "\"").c_str(), "r");
+    if(!pipe) return -1;
+    char buffer[128]; wxString result = "";
+    while(!feof(pipe))
+    {
+    	if(fgets(buffer, 128, pipe)!=NULL)
+    		result += buffer;
+    }
+    pclose(pipe);
+    wxString temp=""; long lresult=0;
+    for(size_t i=0; i<result.length(); ++i)
+    {
+        if(IsANum(result.c_str()[i]))
+            temp+=result.c_str()[i];
+        else
+            break;
+    }
+    temp.ToLong(&lresult);
+    return lresult;
 }
 
 void EntangleDialog::UpdateProgress()
@@ -493,7 +526,7 @@ bool SmartRemove(wxString path)
         return true;
 
     /** Read-Only files removing **/
-    #ifdef _WIN32
+    #ifdef __WIN32__
     WIN32_FIND_DATA f;
     HANDLE h = FindFirstFile(path.wc_str() , &f);
     if(h == INVALID_HANDLE_VALUE) return false;
@@ -521,51 +554,13 @@ bool SmartRename(wxString before, wxString after)
     return false;
 }
 
-long long GetFileSize(wxString SrcPath)
+bool IsANum(char symbol)
 {
-    WIN32_FIND_DATA f;
-    HANDLE h = FindFirstFile(SrcPath.c_str(), &f);
-    if (h!=INVALID_HANDLE_VALUE)
-    {
-        if(f.dwFileAttributes == 16)
-        {
-            FindClose(h);
-            return GetFolderSize(SrcPath);
-        }
-        long long nFileLen = 0;
-        nFileLen =(f.nFileSizeHigh * (MAXDWORD+1)) + f.nFileSizeLow;
-        FindClose(h);
-        return nFileLen;
-    }
-    else
-        return -1;
+    int code = (int)symbol;
+    if(code>47&&code<58)
+        return true;
+    return false;
 }
-
-unsigned long long GetFolderSize(wxString SrcPath)
-{
-      HANDLE h;
-      WIN32_FIND_DATA f;
-      DWORDLONG Result=0;
-
-      h = FindFirstFile((SrcPath+"\\*.*").c_str(), &f);
-      if (h == INVALID_HANDLE_VALUE) return 0;
-      wxString temp;
-      do
-      {
-          temp = f.cFileName;
-        if((temp!=".")&&(temp!=".."))
-        {
-            if(f.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                Result += GetFolderSize(SrcPath+"\\"+wxString(f.cFileName));
-            else
-                Result = Result + ((DWORDLONG)f.nFileSizeHigh<<32) + f.nFileSizeLow;
-        }
-
-      }while(FindNextFile(h, &f));
-      FindClose(h);
-      return (unsigned long long) Result;
-}
-
 
 void AddError(wxString fname, wxString code)
 {
