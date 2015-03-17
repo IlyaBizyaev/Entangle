@@ -2,7 +2,7 @@
  * Name:      EntangleMain.h
  * Purpose:   Defines Application Frame
  * Author:    Ilya Bizyaev (bizyaev.game@yandex.ru)
- * Created:   2015-01-06
+ * Created:   2015-01-01
  * Copyright: Ilya Bizyaev (utor.ucoz.ru)
  * License:   GNU GPL v3
  **************************************************************/
@@ -11,22 +11,25 @@
 #define ENTANGLEMAIN_H
 
 //(*Headers(EntangleDialog)
+#include <wx/msgdlg.h>
+#include <wx/progdlg.h>
+#include <wx/dialog.h>
 #include <wx/sizer.h>
+#include <wx/button.h>
+#include <wx/dirctrl.h>
 #include <wx/stattext.h>
 #include <wx/textctrl.h>
-#include <wx/msgdlg.h>
-#include <wx/dirctrl.h>
-#include <wx/progdlg.h>
-#include <wx/button.h>
-#include <wx/dialog.h>
 //*)
 
+#ifdef __WIN32__
 #include<secblock.h>
+#else
+#include<cryptopp/secblock.h>
+#endif
 
 class EntangleDialog: public wxDialog
 {
     public:
-
         EntangleDialog(wxWindow* parent,wxWindowID id = -1);
         virtual ~EntangleDialog();
         friend class DroppedFilesReciever;
@@ -38,7 +41,7 @@ class EntangleDialog: public wxDialog
         void OnQuit(wxCommandEvent& event);
         void OnAbout(wxCommandEvent& event);
         void OnButton1Click(wxCommandEvent& event);
-        void Process(wxString first, const CryptoPP::SecByteBlock & key);
+        void Process(wxString first, byte key[]);
         //*)
 
         //(*Identifiers(EntangleDialog)
@@ -48,19 +51,19 @@ class EntangleDialog: public wxDialog
         static const long ID_TEXTCTRL1;
         static const long ID_BUTTON2;
         static const long ID_BUTTON1;
-        static const long ID_PROGRESSDIALOG1;
         static const long ID_MESSAGEDIALOG1;
+        static const long ID_PROGRESSDIALOG1;
         //*)
 
         //(*Declarations(EntangleDialog)
-        wxStaticText* StaticText2;
+        wxProgressDialog* ProgressDialog1;
+        wxGenericDirCtrl* GenericDirCtrl1;
         wxButton* Button1;
         wxStaticText* StaticText1;
-        wxGenericDirCtrl* GenericDirCtrl1;
         wxButton* AboutButton;
-        wxTextCtrl* TextCtrl1;
-        wxProgressDialog* ProgressDialog1;
         wxMessageDialog* MessageDialog1;
+        wxTextCtrl* TextCtrl1;
+        wxStaticText* StaticText2;
         //*)
 
         DECLARE_EVENT_TABLE()
