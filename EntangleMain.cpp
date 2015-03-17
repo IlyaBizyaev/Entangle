@@ -41,20 +41,22 @@ using namespace CryptoPP;
 
 #ifdef __WIN32__
 unsigned long long GetFolderSize(wxString SrcPath);
+#else
+bool IsANum(char);
 #endif // __WIN32__
 unsigned long long GetFileSize(wxString path); //Works on Unix
-bool IsANum(char);
 void AddError(wxString, wxString);
 bool SmartRemove(wxString path);
 bool SmartRename(wxString before, wxString after);
 
 int NumFiles=0, ShowProgress=0;
 unsigned long long Total=0, NumBytes=0;
-bool NowWorking=false; bool ShouldDecrypt = false;
+bool NowWorking=false;
 locale current("");
 wxArrayString drop_files, mistakes;
 wxString show_str="Starting...";
 AutoSeededRandomPool rnd;
+byte * FromSink = NULL; size_t GotFromSink=0;
 
 //My lovely structures ^_^
 struct Header
@@ -64,21 +66,39 @@ struct Header
     byte keys[32];              /* AES-256 key storage area */
 };
 
-class SecByteBlockSink : public Bufferless<Sink>
+class EntangleSink : public Bufferless<Sink>
 {
 public:
-    SecByteBlockSink(SecByteBlock& sbb) : m_sbb(sbb) { }
-
-    size_t Put2(const byte *inString, size_t length, int /*messageEnd*/, bool /*blocking*/)
+    EntangleSink()
+    {
+        if(FromSink!=NULL)
+        {
+            delete[] FromSink;
+            FromSink = NULL;
+        }
+    }
+    ~EntangleSink()
+    {
+        delete[] FromSink;
+        FromSink = NULL;
+        GotFromSink=0;
+    }
+    size_t Put2(const byte *inString, size_t length, int, bool)
     {
         if(!inString || !length)
-            return length;
-        m_sbb += SecByteBlock (inString, length);
+			return length;
+        //Reserving new array
+        byte * NewArray = new byte[GotFromSink+length];
+        //Copying there old data
+        memcpy(NewArray, FromSink, GotFromSink);
+        //Deleting old array and updating the data address
+        delete[] FromSink; FromSink = NewArray;
+        //Adding new data
+        memcpy(NewArray+GotFromSink, inString, length);
+        //Updating the size
+        GotFromSink+=length;
         return 0;
     }
-
-private:
-    SecByteBlock& m_sbb;
 };
 
 //(*InternalHeaders(EntangleDialog)
@@ -185,9 +205,9 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& event)
         return;
     }
     //Assign password to key
-    SecByteBlock key(0x00, 16);
-    const byte *byteKey = (byte*) wxpassword.c_str().AsChar();
-    key.Assign(byteKey, 16);
+    byte key[16];
+    const char * charKey = wxpassword.c_str().AsChar();
+    memcpy(key, charKey, 16);
     //Get tasks
     wxArrayString choice;
     GenericDirCtrl1->GetPaths(choice);
@@ -236,7 +256,7 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& event)
         StaticText2->SetLabelText(_("Complete (")+wxString::FromDouble(NumFiles)+_(" file(s))"));
 }
 
-void EntangleDialog::Process(wxString first, const SecByteBlock & key)
+void EntangleDialog::Process(wxString first, byte key[])
 {
     #ifdef __WIN32__
     WIN32_FIND_DATA f;
@@ -307,7 +327,7 @@ void EntangleDialog::Process(wxString first, const SecByteBlock & key)
             show_str = _("Decrypting ")+first.substr(cut+1, first.Length()-cut-1);
             In.get();
             //Reserving space for IV, decrypted data and retrieved header
-            byte iv[16]; SecByteBlock retrieved(0x00, 0); Header DecryptedHeader;
+            byte iv[16]; byte * retrieved; Header DecryptedHeader;
             //Reading the IV
             In.read((char*)&iv, 16);
             try
@@ -315,7 +335,7 @@ void EntangleDialog::Process(wxString first, const SecByteBlock & key)
                 //New AES Decryption object
                 GCM<AES>::Decryption d;
                 //Setting key and IV
-                d.SetKeyWithIV(key.BytePtr(), key.SizeInBytes(), iv, sizeof(iv));
+                d.SetKeyWithIV(key, 16, iv, sizeof(iv));
                 //Reserving space for header and MAC and reading them
                 byte blockky[64]; In.read((char*)&blockky, 64);
                 //Creating new Decryption filter
@@ -328,19 +348,16 @@ void EntangleDialog::Process(wxString first, const SecByteBlock & key)
                 // If the object throws, it most likely occurs here
                 df.ChannelMessageEnd("");
 
-                //If the object does not throw, here's the only
-                //opportunity to check the data's integrity
                 //TODO: Check if it's needed
-                bool b = df.GetLastResult();
-                assert(b == true);
+                assert(df.GetLastResult() == true);
 
                 //Get data from channel
                 df.SetRetrievalChannel("");
                 size_t n = (size_t)df.MaxRetrievable();
-                retrieved.resize(n);
+                retrieved = new byte[n];
 
-                if(n > 0) { df.Get((byte*)retrieved.BytePtr(), n); }
-                memcpy(&DecryptedHeader, retrieved.BytePtr(), n);
+                if(n > 0) { df.Get(retrieved, n); }
+                memcpy(&DecryptedHeader, retrieved, n);
             }
            	catch(CryptoPP::InvalidArgument& e)
             {
@@ -417,17 +434,15 @@ void EntangleDialog::Process(wxString first, const SecByteBlock & key)
                 //New AES Encryption object
                 GCM<AES>::Encryption e;
                 //Setting user key and random IV
-                e.SetKeyWithIV(key.BytePtr(), key.SizeInBytes(), iv, sizeof(iv));
-                //Creating SecByteBlock for the header
-                SecByteBlock blockky(0x00, 0);
-                //Filter with a SecByteBlockSink
+                e.SetKeyWithIV(key, 16, iv, sizeof(iv));
+                //Filter with an EntangleSink
                 AuthenticatedEncryptionFilter ef(e,
-                new SecByteBlockSink(blockky), false, TAG_SIZE);
+                new EntangleSink(), false, TAG_SIZE);
                 //Encrypting MakeHeader
                 ef.ChannelPut("", (const byte*)&MakeHeader, sizeof(MakeHeader));
                 ef.ChannelMessageEnd("");
-                //Writing SecByteBlock
-                Out.write(reinterpret_cast<const char*>(blockky.BytePtr()), blockky.SizeInBytes());
+                //Writing received data
+                Out.write(reinterpret_cast<const char*>(FromSink), GotFromSink);
             }
             catch(CryptoPP::BufferedTransformation::NoChannelSupport& e)
             {
@@ -539,6 +554,15 @@ unsigned long long GetFolderSize(wxString SrcPath)
       return (unsigned long long) Result;
 }
 #else
+
+bool IsANum(char symbol)
+{
+    int code = (int)symbol;
+    if(code>47&&code<58)
+        return true;
+    return false;
+}
+
 unsigned long long GetFileSize(wxString path)
 {
     FILE* pipe = popen(wxString("du -b -s \"" + path + "\"").c_str(), "r");
@@ -605,14 +629,6 @@ bool SmartRename(wxString before, wxString after)
     }
 
     AddError(before, "BAD_RENAME");
-    return false;
-}
-
-bool IsANum(char symbol)
-{
-    int code = (int)symbol;
-    if(code>47&&code<58)
-        return true;
     return false;
 }
 
