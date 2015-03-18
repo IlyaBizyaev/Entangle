@@ -2,7 +2,7 @@
  * Name:      EntangleApp.h
  * Purpose:   Defines Application Class
  * Author:    Ilya Bizyaev (bizyaev.game@yandex.ru)
- * Created:   2015-01-06
+ * Created:   2015-01-01
  * Copyright: Ilya Bizyaev (utor.ucoz.ru)
  * License:   GNU GPL v3
  **************************************************************/
