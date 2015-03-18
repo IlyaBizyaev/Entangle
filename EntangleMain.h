@@ -21,11 +21,6 @@
 #include <wx/textctrl.h>
 //*)
 
-#ifdef __WIN32__
-#include<secblock.h>
-#else
-#include<cryptopp/secblock.h>
-#endif
 
 class EntangleDialog: public wxDialog
 {
