@@ -7,7 +7,10 @@
  * License:   GNU GPL v3
  **************************************************************/
 
+#ifdef __WIN32__
 #include "wx_pch.h"
+#endif
+
 #include "EntangleApp.h"
 
 //(*AppHeaders
@@ -36,7 +39,9 @@ bool EntangleApp::OnInit()
             m_locale.AddCatalog("fileutils");
         #endif
     	EntangleDialog Dlg(0);
+	#ifdef __WIN32__
     	Dlg.SetIcon(wxICON(aaaaa));
+	#endif
     	SetTopWindow(&Dlg);
     	Dlg.ShowModal();
     	wxsOK = false;
