@@ -4,6 +4,7 @@
 ## Description
 Entangle is a simple application, designed to help users protect their private and personal data in a few clicks.
 Entangle is built using wxWidgets and Crypto++ libraries, which makes it cross-platform.
+
 **Project website:** http://entangle.ucoz.net/
 ## NOTE
 For now, this application is under active development, which means it is not for public usage; so, the "master" branch is empty. However, you can see the pre-release code in the "unstable" branch.
