@@ -72,17 +72,9 @@ public:
     EntangleSink()
     {
         if(FromSink!=NULL)
-        {
-            delete[] FromSink;
-            FromSink = NULL;
-        }
+            Clean();
     }
-    ~EntangleSink()
-    {
-        delete[] FromSink;
-        FromSink = NULL;
-        GotFromSink=0;
-    }
+
     size_t Put2(const byte *inString, size_t length, int, bool)
     {
         if(!inString || !length)
@@ -98,6 +90,13 @@ public:
         //Updating the size
         GotFromSink+=length;
         return 0;
+    }
+
+    static void Clean()
+    {
+        delete[] FromSink;
+        FromSink = NULL;
+        GotFromSink=0;
     }
 };
 
@@ -437,12 +436,13 @@ void EntangleDialog::Process(wxString first, byte key[])
                 e.SetKeyWithIV(key, 16, iv, sizeof(iv));
                 //Filter with an EntangleSink
                 AuthenticatedEncryptionFilter ef(e,
-                new EntangleSink(), false, TAG_SIZE);
+                new EntangleSink, false, TAG_SIZE);
                 //Encrypting MakeHeader
                 ef.ChannelPut("", (const byte*)&MakeHeader, sizeof(MakeHeader));
                 ef.ChannelMessageEnd("");
                 //Writing received data
                 Out.write(reinterpret_cast<const char*>(FromSink), GotFromSink);
+                EntangleSink::Clean();
             }
             catch(CryptoPP::BufferedTransformation::NoChannelSupport& e)
             {
