@@ -14,6 +14,7 @@ public:
         Clean();
     }
 
+    /** Most problematic stuff **/
     size_t Put2(const byte *inString, size_t length, int, bool)
     {
         if(!inString || !length)
