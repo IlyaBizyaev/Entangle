@@ -4,13 +4,11 @@ class EntangleSink : public Bufferless<Sink>
 public:
     EntangleSink(byte ** g_output, size_t * g_size) : output(g_output), out_size(g_size)
     {
-        cout << "Constructor called" << endl;
         Clean();
     }
 
     ~EntangleSink()
     {
-        cout << "Destructor called" << endl;
         Clean();
     }
 
@@ -22,7 +20,7 @@ public:
         *output = (byte*) realloc(*output, *out_size+length);
         //Adding new data
         byte * WhereToJoin = *output + *out_size;
-        MemCopy(WhereToJoin, inString, length);
+        memcpy(WhereToJoin, inString, length);
         //Updating the size
         *out_size+=length;
         return 0;
@@ -33,7 +31,7 @@ public:
         cout << "Clean() called" << endl;
         if(*output!=NULL)
         {
-            delete[] *output;
+            free(*output);
             *output = NULL;
         }
         *out_size=0;
