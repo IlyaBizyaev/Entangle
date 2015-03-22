@@ -39,15 +39,14 @@
 using namespace std;
 using namespace CryptoPP;
 
-#ifdef __WIN32__
-unsigned long long GetFolderSize(wxString SrcPath);
-#else
+#ifndef __WIN32__
 bool IsANum(char);
-#endif // __WIN32__
+#endif // Linux
 unsigned long long GetFileSize(wxString path); //Works on Unix
 void AddError(wxString, wxString);
 bool SmartRemove(wxString path);
 bool SmartRename(wxString before, wxString after);
+void GoodFinish(fstream&, fstream&, wxString&, wxString&);
 
 int NumFiles=0, ShowProgress=0;
 unsigned long long Total=0, NumBytes=0;
@@ -56,7 +55,6 @@ locale current("");
 wxArrayString drop_files, mistakes;
 wxString show_str="Starting...";
 AutoSeededRandomPool rnd;
-byte * FromSink = NULL; size_t GotFromSink=0;
 
 //My lovely structures ^_^
 struct Header
@@ -69,36 +67,40 @@ struct Header
 class EntangleSink : public Bufferless<Sink>
 {
 public:
-    EntangleSink()
-    {
-        if(FromSink!=NULL)
-            Clean();
-    }
+    EntangleSink(byte ** g_output, size_t * g_size) : output(g_output), out_size(g_size)
+    {   Clean();  }
+
+    ~EntangleSink()
+    {   Clean();  }
 
     size_t Put2(const byte *inString, size_t length, int, bool)
     {
         if(!inString || !length)
 			return length;
-        //Reserving new array
-        byte * NewArray = new byte[GotFromSink+length];
-        //Copying there old data
-        memcpy(NewArray, FromSink, GotFromSink);
-        //Deleting old array and updating the data address
-        delete[] FromSink; FromSink = NewArray;
+        //Reallocating the array
+        *output = (byte*) realloc(*output, *out_size+length);
         //Adding new data
-        memcpy(NewArray+GotFromSink, inString, length);
+        byte * WhereToJoin = *output + *out_size;
+        memcpy(WhereToJoin, inString, length);
         //Updating the size
-        GotFromSink+=length;
+        *out_size+=length;
         return 0;
     }
 
-    static void Clean()
+    void Clean()
     {
-        delete[] FromSink;
-        FromSink = NULL;
-        GotFromSink=0;
+        if(*output!=NULL)
+        {
+            free(*output);
+            *output = NULL;
+        }
+        *out_size=0;
     }
+private:
+    byte ** output;
+    size_t * out_size;
 };
+
 
 //(*InternalHeaders(EntangleDialog)
 #include <wx/string.h>
@@ -312,8 +314,7 @@ void EntangleDialog::Process(wxString first, byte key[])
         Out.open(first, ios_base::out|ios_base::trunc|ios_base::binary);
         if(!Out.is_open())
         {
-            In.close();
-            rename(temp_path.c_str(),first.c_str());
+            GoodFinish(In, Out, temp_path, first);
             AddError(first, "BAD_RES_CREATE");
             return;
         }
@@ -343,7 +344,6 @@ void EntangleDialog::Process(wxString first, byte key[])
                     AuthenticatedDecryptionFilter::THROW_EXCEPTION, TAG_SIZE);
                 //Putting the decrypted header to the filter
                 df.ChannelPut("", (const byte*)&blockky, 64);
-
                 // If the object throws, it most likely occurs here
                 df.ChannelMessageEnd("");
 
@@ -361,24 +361,21 @@ void EntangleDialog::Process(wxString first, byte key[])
            	catch(CryptoPP::InvalidArgument& e)
             {
                 AddError(first, "INV_ARGUMENT");
-                In.close(); Out.close();
-                SmartRename(temp_path, first);
+                GoodFinish(In, Out, temp_path, first);
                 return;
             }
             catch(CryptoPP::AuthenticatedSymmetricCipher::BadState& e)
             {
                 // Pushing PDATA before ADATA results in:
                 AddError(first, "BAD_STATE");
-                In.close(); Out.close();
-                SmartRename(temp_path, first);
+                GoodFinish(In, Out, temp_path, first);
                 return;
             }
             catch(CryptoPP::HashVerificationFilter::HashVerificationFailed& e)
             {
                 //Caught HashVerificationFailed
                 AddError(first, "BAD_PASSWORD");
-                In.close(); Out.close();
-                SmartRename(temp_path, first);
+                GoodFinish(In, Out, temp_path, first);
                 return;
             }
 
@@ -434,37 +431,36 @@ void EntangleDialog::Process(wxString first, byte key[])
                 GCM<AES>::Encryption e;
                 //Setting user key and random IV
                 e.SetKeyWithIV(key, 16, iv, sizeof(iv));
+                //Preparing storage for results
+                byte * Received = NULL;
+                size_t GotSize = 0;
                 //Filter with an EntangleSink
                 AuthenticatedEncryptionFilter ef(e,
-                new EntangleSink, false, TAG_SIZE);
+                new EntangleSink(&Received, &GotSize), false, TAG_SIZE);
                 //Encrypting MakeHeader
                 ef.ChannelPut("", (const byte*)&MakeHeader, sizeof(MakeHeader));
                 ef.ChannelMessageEnd("");
-                //Writing received data
-                Out.write(reinterpret_cast<const char*>(FromSink), GotFromSink);
-                EntangleSink::Clean();
+                //Writing encrypted data
+                Out.write(reinterpret_cast<const char*>(Received), GotSize);
             }
             catch(CryptoPP::BufferedTransformation::NoChannelSupport& e)
             {
                 // The tag must go in to the default channel
                 AddError(first, "NO_CH_SUPPORT");
-                In.close(); Out.close();
-                SmartRename(temp_path, first);
+                GoodFinish(In, Out, temp_path, first);
                 return;
             }
             catch(CryptoPP::AuthenticatedSymmetricCipher::BadState& e)
             {
                 // TODO: Get more info about this.
                 AddError(first, "BAD_STATE");
-                In.close(); Out.close();
-                SmartRename(temp_path, first);
+                GoodFinish(In, Out, temp_path, first);
                 return;
             }
             catch(CryptoPP::InvalidArgument& e)
             {
                 AddError(first, "INV_ARGUMENT");
-                In.close(); Out.close();
-                SmartRename(temp_path, first);
+                GoodFinish(In, Out, temp_path, first);
                 return;
             }
 
@@ -509,49 +505,47 @@ void EntangleDialog::Process(wxString first, byte key[])
 }
 
 #ifdef __WIN32__
-unsigned long long GetFileSize(wxString SrcPath)
+unsigned long long GetFileSize(wxString path)
 {
+    //E.g. "E:\Projects\" becomes "E:\Projects"
+    if((path.c_str())[path.length()-1]=='\\')
+        path = path.substr(0, path.length()-1);
+    //Declaring some objects
     WIN32_FIND_DATA f;
-    HANDLE h = FindFirstFile(SrcPath.c_str(), &f);
+    HANDLE h = FindFirstFile(path.c_str(), &f);
+    //If filename is correct
     if (h!=INVALID_HANDLE_VALUE)
     {
-        if(f.dwFileAttributes == 16)
+        unsigned long long result = 0;
+        /** DIRECTORY **/
+        if(f.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
         {
             FindClose(h);
-            return GetFolderSize(SrcPath);
+            h = FindFirstFile((path+"\\*.*").c_str(), &f);
+            if(h == INVALID_HANDLE_VALUE)
+            {
+                //AddError(path, "BAD_FS_FNAME");
+                return -1;
+            }
+            wxString temp;
+            do
+            {
+                temp = f.cFileName;
+                if((temp!=".")&&(temp!=".."))
+                    result+=GetFileSize(path+"\\"+temp);
+            }while(FindNextFile(h, &f));
+            FindClose(h);
         }
-        long long nFileLen = 0;
-        nFileLen =(f.nFileSizeHigh * (MAXDWORD+1)) + f.nFileSizeLow;
+        else /** USUAL FILE **/
+            result =(f.nFileSizeHigh * (MAXDWORD+1)) + f.nFileSizeLow;
         FindClose(h);
-        return nFileLen;
+        return result;
     }
     else
+    {
+        //AddError(path, "BAD_FS_FNAME");
         return -1;
-}
-
-unsigned long long GetFolderSize(wxString SrcPath)
-{
-      HANDLE h;
-      WIN32_FIND_DATA f;
-      DWORDLONG Result=0;
-
-      h = FindFirstFile((SrcPath+"\\*.*").c_str(), &f);
-      if (h == INVALID_HANDLE_VALUE) return 0;
-      wxString temp;
-      do
-      {
-          temp = f.cFileName;
-        if((temp!=".")&&(temp!=".."))
-        {
-            if(f.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                Result += GetFolderSize(SrcPath+"\\"+wxString(f.cFileName));
-            else
-                Result = Result + ((DWORDLONG)f.nFileSizeHigh<<32) + f.nFileSizeLow;
-        }
-
-      }while(FindNextFile(h, &f));
-      FindClose(h);
-      return (unsigned long long) Result;
+    }
 }
 #else
 
@@ -635,4 +629,11 @@ bool SmartRename(wxString before, wxString after)
 void AddError(wxString fname, wxString code)
 {
     mistakes.push_back(fname+" ("+code+")");
+}
+
+void GoodFinish(fstream & In, fstream & Out, wxString & temp_path, wxString & first)
+{
+    if(In.is_open()) In.close();
+    if(Out.is_open()) Out.close();
+    SmartRename(temp_path, first);
 }
