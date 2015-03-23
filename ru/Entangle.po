@@ -1,0 +1,112 @@
+# Entangle 1.0
+# Copyright (C) 2015 Ilya Bizyaev
+# This file is distributed under the same license as the Entangle package.
+# Ilya Bizyaev <bizyaev@lyceum62.ru>, 2015.
+msgid ""
+msgstr ""
+"Project-Id-Version: Entangle 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2015-02-10 10:59+0300\n"
+"PO-Revision-Date: 2015-02-12 10:49+0300\n"
+"Last-Translator: Ilya Bizyaev <bizyaev@lyceum62.ru>\n"
+"Language-Team: Russian <bizyaev@lyceum62.ru>\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: EntangleMain.cpp:69
+msgid "Received "
+msgstr "Получено "
+
+#: EntangleMain.cpp:69
+msgid " file(s)"
+msgstr " файл(ов)"
+
+#: EntangleMain.cpp:85
+msgid "Entangle"
+msgstr "Entangle"
+
+#: EntangleMain.cpp:88
+msgid "Choose files or folders:"
+msgstr "Выберите файлы или папки:"
+
+#: EntangleMain.cpp:92
+msgid "Enter the password:"
+msgstr "Введите пароль:"
+
+#: EntangleMain.cpp:97 EntangleMain.cpp:104
+msgid "About"
+msgstr "Справка"
+
+#: EntangleMain.cpp:99
+msgid "Start"
+msgstr "Начать"
+
+#: EntangleMain.cpp:104
+msgid "Simple application for protecting\nyour personal data\n(C) Ilya Bizyaev, 2015"
+msgstr "Простое приложение для защиты\nваших личных данных\n(С) Илья Бизяев, 2015"
+
+#: EntangleMain.cpp:141
+msgid "Too short"
+msgstr "Слишком короткий"
+
+#: EntangleMain.cpp:146
+msgid "Too long"
+msgstr "Слишком длинный"
+
+#: EntangleMain.cpp:159
+msgid "No tasks!"
+msgstr "Нет задания!"
+
+#: EntangleMain.cpp:169
+msgid "Waiting..."
+msgstr "Ожидание..."
+
+#: EntangleMain.cpp:170
+msgid "Progress"
+msgstr "Прогресс"
+
+#: EntangleMain.cpp:170 EntangleMain.cpp:173
+msgid "Starting..."
+msgstr "Начинаю..."
+
+#: EntangleMain.cpp:182
+msgid "Done!"
+msgstr "Готово!"
+
+#: EntangleMain.cpp:187
+msgid "Some files were not processed:"
+msgstr "Некоторые файлы не обработаны:"
+
+#: EntangleMain.cpp:191
+msgid "\n...and "
+msgstr "\n...и "
+
+#: EntangleMain.cpp:191
+msgid " more ones."
+msgstr " других."
+
+#: EntangleMain.cpp:193
+msgid "Went wrong :("
+msgstr "Не удалось :("
+
+#: EntangleMain.cpp:194
+msgid "Error list"
+msgstr "Список ошибок"
+
+#: EntangleMain.cpp:198
+msgid "Complete ("
+msgstr "Готово ("
+
+#: EntangleMain.cpp:198
+msgid " file(s))"
+msgstr " файл(ов))"
+
+#: EntangleMain.cpp:256
+msgid "Decrypting "
+msgstr "Дешифрую "
+
+#: EntangleMain.cpp:285
+msgid "Encrypting "
+msgstr "Шифрую "
