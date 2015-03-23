@@ -21,6 +21,7 @@
 #include <wx/textctrl.h>
 //*)
 
+typedef unsigned char byte;
 
 class EntangleDialog: public wxDialog
 {
