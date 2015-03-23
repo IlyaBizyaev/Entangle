@@ -494,7 +494,7 @@ void EntangleDialog::Process(wxString first, byte key[])
         }
         /** <<<<<<< FINISHED MAIN PART >>>>>>> **/
         In.close(); Out.close();
-        if(!SmartRemove(temp_path))
+        if(!SmartRemove(temp_path, true))
         {
             AddError(first, "BAD_TEMP_DELETE");
             return;
@@ -591,9 +591,27 @@ void EntangleDialog::UpdateProgress()
     ProgressDialog1->Update(ShowProgress, show_str);
 }
 
-bool SmartRemove(wxString path)
+bool SmartRemove(wxString path, bool safe = false)
 {
-    /* TODO: Implement safe deletion! */
+    if(safe)
+    {
+        fstream target;
+        //Attempting to open the file
+        target.open(filename, ios_base::in | ios_base::binary);
+        if(!target.is_open()) return false;
+        //If opened, getting its size and closing it.
+        target.seekg(0, ios::end); unsigned int fsize = target.tellg();
+        target.close();
+        //Opening the same file for writing
+        target.open(filename, ios_base::out | ios_base::binary);
+        target.seekp(0, ios::beg);
+        //Overwriting the data
+        for(unsigned int i=0; i<fsize; ++i)
+            target.write(" ", 1);
+        //Closing the file
+        target.close();
+    }
+
     if(remove(path.c_str())==0)
         return true;
 
@@ -607,6 +625,7 @@ bool SmartRemove(wxString path)
         SetFileAttributes(path.wc_str(), FILE_ATTRIBUTE_NORMAL);
         if(remove(path.c_str())==0) return true;
     }
+    FindClose(h);
     #endif // _WIN32
 
     return false;
@@ -614,26 +633,34 @@ bool SmartRemove(wxString path)
 
 bool SmartRename(wxString before, wxString after)
 {
+    //Trying usual renaming
     if(rename(before.c_str(), after.c_str())==0)
         return true;
+    //If it fails, deleting the file with such a name...
     if(SmartRemove(after))
     {
+        //...and retrying.
         if(rename(before.c_str(), after.c_str())==0)
             return true;
     }
-
+    //If nothing helps, throwing an error.
     AddError(before, "BAD_RENAME");
     return false;
 }
 
 void AddError(wxString fname, wxString code)
 {
+    //Producing a human-readable output
+    //and pushing the result to the main list.
     mistakes.push_back(fname+" ("+code+")");
 }
 
 void GoodFinish(fstream & In, fstream & Out, wxString & temp_path, wxString & first)
 {
+    //Checking whether any files are open.
+    //If so, closing them.
     if(In.is_open()) In.close();
     if(Out.is_open()) Out.close();
+    //Renaming the temp file into its original name.
     SmartRename(temp_path, first);
 }
