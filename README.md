@@ -14,7 +14,9 @@ Entangle is distributed under the GNU GPL v3 license; however, I STRONGLY recomm
 Please notify me if you want to use this code in any projects.
 ## Thanks to...
 ...**DenDev** for the event processing algorithm.
+
 ...**doublemax** for the progress bar.
+
 ...*Jean-Pierre Münch**, **Jeffrey Walton** ans **Mobile Mouse** for help with the encryption.
 ## Copyright
 Copyright (C) Ilya Bizyaev <bizyaev@lyceum62.ru>, 2015.
