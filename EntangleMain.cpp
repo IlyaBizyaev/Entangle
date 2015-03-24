@@ -44,7 +44,7 @@ bool IsANum(char);
 #endif // Linux
 unsigned long long GetFileSize(wxString path); //Works on Unix
 void AddError(wxString, wxString);
-bool SmartRemove(wxString path);
+bool SmartRemove(wxString path, bool safe);
 bool SmartRename(wxString before, wxString after);
 void GoodFinish(fstream&, fstream&, wxString&, wxString&);
 
@@ -205,10 +205,10 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& event)
         StaticText2->SetLabelText(_("Too long"));
         return;
     }
-    //Assign password to key
-    byte key[16];
-    const char * charKey = wxpassword.c_str().AsChar();
-    memcpy(key, charKey, 16);
+    //Assign password to the key
+    byte key[32];
+    const wchar_t * charKey = wxpassword.c_str().AsWChar();
+    memcpy(key, (byte*)charKey, 32);
     //Get tasks
     wxArrayString choice;
     GenericDirCtrl1->GetPaths(choice);
@@ -327,15 +327,15 @@ void EntangleDialog::Process(wxString first, byte key[])
             show_str = _("Decrypting ")+first.substr(cut+1, first.Length()-cut-1);
             In.get();
             //Reserving space for IV, decrypted data and retrieved header
-            byte iv[16]; byte * retrieved; Header DecryptedHeader;
+            byte iv[32]; byte * retrieved; Header DecryptedHeader;
             //Reading the IV
-            In.read((char*)&iv, 16);
+            In.read((char*)&iv, 32);
             try
             {
                 //New AES Decryption object
                 GCM<AES>::Decryption d;
                 //Setting key and IV
-                d.SetKeyWithIV(key, 16, iv, sizeof(iv));
+                d.SetKeyWithIV(key, 32, iv, 32);
                 //Reserving space for header and MAC and reading them
                 byte blockky[64]; In.read((char*)&blockky, 64);
                 //Creating new Decryption filter
@@ -411,8 +411,8 @@ void EntangleDialog::Process(wxString first, byte key[])
             In.seekg(0, ios::beg);
             Out << "ENTANGLE" << endl;
             //Creating, generating and writing the IV
-            byte iv[16]; rnd.GenerateBlock(iv, 16);
-            Out.write(reinterpret_cast<const char*>(&iv), 16);
+            byte iv[32]; rnd.GenerateBlock(iv, 32);
+            Out.write(reinterpret_cast<const char*>(&iv), 32);
             //Creating and cleaning the Entangle Header
             Header MakeHeader; memset(&MakeHeader, 0x00, sizeof(MakeHeader));
             //Getting and writing the file size
@@ -430,7 +430,7 @@ void EntangleDialog::Process(wxString first, byte key[])
                 //New AES Encryption object
                 GCM<AES>::Encryption e;
                 //Setting user key and random IV
-                e.SetKeyWithIV(key, 16, iv, sizeof(iv));
+                e.SetKeyWithIV(key, 32, iv, 32);
                 //Preparing storage for results
                 byte * Received = NULL;
                 size_t GotSize = 0;
@@ -524,7 +524,7 @@ unsigned long long GetFileSize(wxString path)
             h = FindFirstFile((path+"\\*.*").c_str(), &f);
             if(h == INVALID_HANDLE_VALUE)
             {
-                //AddError(path, "BAD_FS_FNAME");
+                AddError(path, "BAD_FS_FNAME");
                 return -1;
             }
             wxString temp;
@@ -543,7 +543,7 @@ unsigned long long GetFileSize(wxString path)
     }
     else
     {
-        //AddError(path, "BAD_FS_FNAME");
+        AddError(path, "BAD_FS_FNAME");
         return -1;
     }
 }
@@ -597,13 +597,13 @@ bool SmartRemove(wxString path, bool safe = false)
     {
         fstream target;
         //Attempting to open the file
-        target.open(filename, ios_base::in | ios_base::binary);
+        target.open(path, ios_base::in | ios_base::binary);
         if(!target.is_open()) return false;
         //If opened, getting its size and closing it.
         target.seekg(0, ios::end); unsigned int fsize = target.tellg();
         target.close();
         //Opening the same file for writing
-        target.open(filename, ios_base::out | ios_base::binary);
+        target.open(path, ios_base::out | ios_base::binary);
         target.seekp(0, ios::beg);
         //Overwriting the data
         for(unsigned int i=0; i<fsize; ++i)
