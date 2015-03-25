@@ -39,12 +39,9 @@
 using namespace std;
 using namespace CryptoPP;
 
-#ifndef __WIN32__
-bool IsANum(char);
-#endif // Linux
 unsigned long long GetFileSize(wxString path); //Works on Unix
 void AddError(wxString, wxString);
-bool SmartRemove(wxString path, bool safe);
+bool SmartRemove(wxString path, bool safe = false);
 bool SmartRename(wxString before, wxString after);
 void GoodFinish(fstream&, fstream&, wxString&, wxString&);
 
@@ -206,9 +203,9 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& event)
         return;
     }
     //Assign password to the key
-    byte key[32];
-    const wchar_t * charKey = wxpassword.c_str().AsWChar();
-    memcpy(key, (byte*)charKey, 32);
+    byte key[16];
+    const char * charKey = wxpassword.c_str().AsChar();
+    memcpy(key, (byte*)charKey, 16);
     //Get tasks
     wxArrayString choice;
     GenericDirCtrl1->GetPaths(choice);
@@ -286,8 +283,8 @@ void EntangleDialog::Process(wxString first, byte key[])
         while((ent = readdir(dir))!=NULL) //While there are files
         {
             fname=ent->d_name; //For easiness
-            //Not this folder, not outer one and not a backup
-            if(fname!="."&&fname!=".."&&fname.find('~')==wxString::npos)
+            //Not this folder and not the outer one.
+            if(fname!="."&&fname!="..")
                 Process(first+"/"+fname, key);
         }
         closedir(dir);
@@ -327,15 +324,15 @@ void EntangleDialog::Process(wxString first, byte key[])
             show_str = _("Decrypting ")+first.substr(cut+1, first.Length()-cut-1);
             In.get();
             //Reserving space for IV, decrypted data and retrieved header
-            byte iv[32]; byte * retrieved; Header DecryptedHeader;
+            byte iv[16]; byte * Retrieved; Header DecryptedHeader;
             //Reading the IV
-            In.read((char*)&iv, 32);
+            In.read((char*)&iv, 16);
             try
             {
                 //New AES Decryption object
                 GCM<AES>::Decryption d;
                 //Setting key and IV
-                d.SetKeyWithIV(key, 32, iv, 32);
+                d.SetKeyWithIV(key, 16, iv, sizeof(iv));
                 //Reserving space for header and MAC and reading them
                 byte blockky[64]; In.read((char*)&blockky, 64);
                 //Creating new Decryption filter
@@ -347,16 +344,13 @@ void EntangleDialog::Process(wxString first, byte key[])
                 // If the object throws, it most likely occurs here
                 df.ChannelMessageEnd("");
 
-                //TODO: Check if it's needed
-                assert(df.GetLastResult() == true);
-
                 //Get data from channel
                 df.SetRetrievalChannel("");
                 size_t n = (size_t)df.MaxRetrievable();
-                retrieved = new byte[n];
+                Retrieved = new byte[n];
 
-                if(n > 0) { df.Get(retrieved, n); }
-                memcpy(&DecryptedHeader, retrieved, n);
+                if(n > 0) { df.Get(Retrieved, n); }
+                memcpy(&DecryptedHeader, Retrieved, n);
             }
            	catch(CryptoPP::InvalidArgument& e)
             {
@@ -411,8 +405,8 @@ void EntangleDialog::Process(wxString first, byte key[])
             In.seekg(0, ios::beg);
             Out << "ENTANGLE" << endl;
             //Creating, generating and writing the IV
-            byte iv[32]; rnd.GenerateBlock(iv, 32);
-            Out.write(reinterpret_cast<const char*>(&iv), 32);
+            byte iv[16]; rnd.GenerateBlock(iv, sizeof(iv));
+            Out.write(reinterpret_cast<const char*>(&iv), 16);
             //Creating and cleaning the Entangle Header
             Header MakeHeader; memset(&MakeHeader, 0x00, sizeof(MakeHeader));
             //Getting and writing the file size
@@ -430,7 +424,7 @@ void EntangleDialog::Process(wxString first, byte key[])
                 //New AES Encryption object
                 GCM<AES>::Encryption e;
                 //Setting user key and random IV
-                e.SetKeyWithIV(key, 32, iv, 32);
+                e.SetKeyWithIV(key, 16, iv, sizeof(iv));
                 //Preparing storage for results
                 byte * Received = NULL;
                 size_t GotSize = 0;
@@ -549,36 +543,32 @@ unsigned long long GetFileSize(wxString path)
 }
 #else
 
-bool IsANum(char symbol)
-{
-    int code = (int)symbol;
-    if(code>47&&code<58)
-        return true;
-    return false;
-}
-
 unsigned long long GetFileSize(wxString path)
 {
-    FILE* pipe = popen(wxString("du -b -s \"" + path + "\"").c_str(), "r");
-    if(!pipe) return -1;
-    char buffer[128]; wxString result = "";
-    while(!feof(pipe))
+    unsigned long long fsize=0;
+    DIR *dir = opendir(path.c_str()); //Dir opening attempt
+    if(dir)/////////////////FOLDER/////////////////
     {
-    	if(fgets(buffer, 128, pipe)!=NULL)
-    		result += buffer;
-    }
-    pclose(pipe);
-    wxString temp=""; long lresult=0;
-    for(size_t i=0; i<result.length(); ++i)
+        struct dirent *ent; //For reading filenames
+        wxString fname; //Name of current file
+        while((ent = readdir(dir))!=NULL) //While there are files
+        {
+            fname=ent->d_name; //For easiness
+            //Not this folder and not outer one
+            if(fname!="."&&fname!="..")
+                fsize+=GetFileSize(path+"/"+fname);
+        }
+        closedir(dir);
+    }///////////////////////////////////////////////
+    else
     {
-        if(IsANum(result.c_str()[i]))
-            temp+=result.c_str()[i];
-        else
-            break;
+        struct stat st;
+        if(stat(path.c_str(), &st)==0)
+            fsize = st.st_size;
     }
-    temp.ToLong(&lresult);
-    return lresult;
+    return fsize;
 }
+
 #endif // __WIN32__
 
 
@@ -591,7 +581,7 @@ void EntangleDialog::UpdateProgress()
     ProgressDialog1->Update(ShowProgress, show_str);
 }
 
-bool SmartRemove(wxString path, bool safe = false)
+bool SmartRemove(wxString path, bool safe)
 {
     if(safe)
     {
@@ -605,9 +595,14 @@ bool SmartRemove(wxString path, bool safe = false)
         //Opening the same file for writing
         target.open(path, ios_base::out | ios_base::binary);
         target.seekp(0, ios::beg);
+        //Making some preparations
+        unsigned int dleft, multiple;
+        dleft = fsize%BUF_SIZE; multiple = fsize-dleft;
+        char buffer[BUF_SIZE]; memset(buffer, (int)' ', BUF_SIZE);
         //Overwriting the data
-        for(unsigned int i=0; i<fsize; ++i)
-            target.write(" ", 1);
+        for(unsigned int i=0; i<multiple; i+=BUF_SIZE)
+            target.write(buffer, BUF_SIZE);
+        target.write(buffer, dleft);
         //Closing the file
         target.close();
     }
