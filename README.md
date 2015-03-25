@@ -9,8 +9,9 @@ Entangle is built using wxWidgets and Crypto++ libraries, which makes it cross-p
 ## Compiling
 ### Linux
 To build the application on Linux, you need to install the following packages:
-- 'libwxgtk3.0' and 'libwxgtk3.0-dev'
-- 'libcrypto++9' and 'libcrypto++-dev'
+- `libwxgtk3.0` and `libwxgtk3.0-dev`
+- `libcrypto++9` and `libcrypto++-dev`
+
 **Note.** On some distributions, Cryto++ packages may be called 'libcryptopp'.
 
 ### Windows
