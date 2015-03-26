@@ -502,7 +502,7 @@ void EntangleDialog::Process(wxString first, byte key[])
 unsigned long long GetFileSize(wxString path)
 {
     //E.g. "E:\Projects\" becomes "E:\Projects"
-    if((path.c_str())[path.length()-1]=='\\')
+    if(path[path.length()-1]=='\\')
         path = path.substr(0, path.length()-1);
     //Declaring some objects
     WIN32_FIND_DATA f;
@@ -525,7 +525,7 @@ unsigned long long GetFileSize(wxString path)
             do
             {
                 temp = f.cFileName;
-                if((temp!=".")&&(temp!=".."))
+                if(temp!="."&&temp!="..")
                     result+=GetFileSize(path+"\\"+temp);
             }while(FindNextFile(h, &f));
             FindClose(h);
