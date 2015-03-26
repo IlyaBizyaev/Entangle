@@ -12,7 +12,7 @@ To build the application on Linux, you need to install the following packages:
 - `libwxgtk3.0` and `libwxgtk3.0-dev`
 - `libcrypto++9` and `libcrypto++-dev`
 
-**Note.** On some distributions, Cryto++ packages may be called 'libcryptopp'.
+**Note.** On some distributions, Cryto++ packages may be called `libcryptopp`.
 
 ### Windows
 On Windows, you have to download wxWidgets and Crypto++ libraries from official websites and build them manually.
