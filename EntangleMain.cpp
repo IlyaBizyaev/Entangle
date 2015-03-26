@@ -521,7 +521,7 @@ unsigned long long GetFileSize(wxString path)
                 AddError(path, "BAD_FS_FNAME");
                 return -1;
             }
-            wstring temp;
+            wxString temp;
             do
             {
                 temp = f.cFileName;
