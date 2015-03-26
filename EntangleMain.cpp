@@ -505,8 +505,8 @@ unsigned long long GetFileSize(wxString path)
     if(path[path.length()-1]=='\\')
         path = path.substr(0, path.length()-1);
     //Declaring some objects
-    WIN32_FIND_DATA f;
-    HANDLE h = FindFirstFile(path.c_str(), &f);
+    WIN32_FIND_DATAW f;
+    HANDLE h = FindFirstFileW(path.wc_str(), &f);
     //If filename is correct
     if (h!=INVALID_HANDLE_VALUE)
     {
@@ -515,20 +515,19 @@ unsigned long long GetFileSize(wxString path)
         if(f.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
         {
             FindClose(h);
-            h = FindFirstFile((path+"\\*.*").c_str(), &f);
+            h = FindFirstFileW((path+L"\\*.*").wc_str(), &f);
             if(h == INVALID_HANDLE_VALUE)
             {
                 AddError(path, "BAD_FS_FNAME");
                 return -1;
             }
-            wxString temp;
+            wstring temp;
             do
             {
                 temp = f.cFileName;
-                if(temp!="."&&temp!="..")
-                    result+=GetFileSize(path+"\\"+temp);
-            }while(FindNextFile(h, &f));
-            FindClose(h);
+                if(temp!=L"."&&temp!=L"..")
+                    result+=GetFileSize(path+L"\\"+temp);
+            }while(FindNextFileW(h, &f));
         }
         else /** USUAL FILE **/
             result =(f.nFileSizeHigh * (MAXDWORD+1)) + f.nFileSizeLow;
@@ -658,4 +657,5 @@ void GoodFinish(fstream & In, fstream & Out, wxString & temp_path, wxString & fi
     if(Out.is_open()) Out.close();
     //Renaming the temp file into its original name.
     SmartRename(temp_path, first);
+    wxTheApp->Yield();
 }
