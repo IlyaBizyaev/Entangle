@@ -208,10 +208,9 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& event)
     const char * charKey = wxpassword.c_str().AsChar();
     memcpy(key, (byte*)charKey, 16);
     //Get tasks
-    wxArrayString choice, tasks;
-    GenericDirCtrl1->GetPaths(choice);
-    //Joining task arrays
-    tasks.insert(tasks.end(), choice.begin(), choice.end());
+    wxArrayString tasks;
+    GenericDirCtrl1->GetPaths(tasks);
+    //Copying the Drag&Drop array
     tasks.insert(tasks.end(), drop_files.begin(), drop_files.end());
     drop_files.Clear();
     //If there are no tasks
@@ -235,7 +234,7 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& event)
         if(fsize==ULONG_LONG_MAX) //GetFileSize() went wrong
         {
             tasks[i]="SKIP";
-            AddError(choice[i], "BAD_FS_FNAME");
+            AddError(tasks[i], "BAD_FS_FNAME");
             continue;
         }
         Total+=fsize;
