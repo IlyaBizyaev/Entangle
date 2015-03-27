@@ -41,6 +41,7 @@ using namespace CryptoPP;
 
 unsigned long long GetFileSize(wxString path); //Works on Unix
 void AddError(wxString, wxString);
+bool CheckExistance(wxString path);
 bool SmartRemove(wxString path, bool safe = false);
 bool SmartRename(wxString before, wxString after);
 void GoodFinish(fstream&, fstream&, wxString&, wxString&);
@@ -56,7 +57,7 @@ AutoSeededRandomPool rnd;
 //My lovely structures ^_^
 struct Header
 {
-    int prog_version;           /* Header format version */
+    int core_version;           /* Header format version */
     unsigned long file_size;    /* Size of original file */
     byte keys[32];              /* AES-256 key storage area */
 };
@@ -207,20 +208,38 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& event)
     const char * charKey = wxpassword.c_str().AsChar();
     memcpy(key, (byte*)charKey, 16);
     //Get tasks
-    wxArrayString choice;
+    wxArrayString choice, tasks;
     GenericDirCtrl1->GetPaths(choice);
+    //Joining task arrays
+    tasks.insert(tasks.end(), choice.begin(), choice.end());
+    tasks.insert(tasks.end(), drop_files.begin(), drop_files.end());
+    drop_files.Clear();
     //If there are no tasks
-    if(choice.empty()&&drop_files.empty())
+    if(tasks.IsEmpty())
     {
         wxMessageBox(_("No tasks!"));
         return;
     }
-    //If there are Dir-Control tasks
-    for(size_t i=0; i<choice.GetCount(); ++i)
-        Total+=GetFileSize(choice[i]);
-    //If there are Drag&Drop tasks
-    for(size_t i=0; i<drop_files.GetCount(); ++i)
-        Total+=GetFileSize(drop_files[i]);
+    /* ESTIMATING REQUIED WORK */
+    unsigned long long fsize;
+    for(size_t i=0; i<tasks.GetCount(); ++i)
+    {
+        fsize = GetFileSize(tasks[i]);
+        //Processing exceptions
+        if(fsize==0) //Empty file
+        {
+            tasks[i]="SKIP";
+            ++NumFiles;
+            continue;
+        }
+        if(fsize==ULONG_LONG_MAX) //GetFileSize() went wrong
+        {
+            tasks[i]="SKIP";
+            AddError(choice[i], "BAD_FS_FNAME");
+            continue;
+        }
+        Total+=fsize;
+    }
 
     StaticText2->SetLabelText(_("Waiting...")); wxYield();
     ProgressDialog1 = new wxProgressDialog(_("Progress"), _("Starting..."), 100, this);
@@ -229,16 +248,16 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& event)
     ProgressDialog1->Update(0, _("Starting..."));
 
     NowWorking = true;
-    //Usual files
-    for(size_t i=0; i<choice.GetCount(); ++i)
-        Process(choice[i], key);
-    //Dropped ones
-    for(size_t i=0; i<drop_files.GetCount(); ++i)
-        Process(drop_files[i], key);
+    //Processing the files
+    for(size_t i=0; i<tasks.GetCount(); ++i)
+    {
+        if(tasks[i]!="SKIP")
+            Process(tasks[i], key);
+    }
     ProgressDialog1->Update(100, _("Done!"));
-    NowWorking = false; drop_files.Clear();
+    NowWorking = false;
 
-    if(!mistakes.empty())
+    if(!mistakes.IsEmpty())
     {
         wxString ErrorList = _("Some files were not processed:");
         for(size_t i=0; i<mistakes.GetCount(); ++i)
@@ -372,7 +391,18 @@ void EntangleDialog::Process(wxString first, byte key[])
                 GoodFinish(In, Out, temp_path, first);
                 return;
             }
-
+            /** Comparing cores **/
+            if(DecryptedHeader.core_version!=ENTANGLE_CORE)
+            {
+                int that_core = DecryptedHeader.core_version;
+                //The core is newer and the user needs an upgrade (^_^)
+                if(that_core > ENTANGLE_CORE)
+                    AddError(first, "BETTER_CORE");
+                else //The core is older, an outdated version is needed.
+                    AddError(first, "ANCIENT_CORE");
+                GoodFinish(In, Out, temp_path, first);
+                return;
+            }
             /** CFB Mode Processing **/
             CFB_Mode<AES>::Decryption cfbDecryption(DecryptedHeader.keys, 32, iv);
             byte transfer[BUF_SIZE];
@@ -413,7 +443,7 @@ void EntangleDialog::Process(wxString first, byte key[])
             In.seekg(0, ios::end); fsize=In.tellg(); In.seekg(0, ios::beg);
             MakeHeader.file_size = fsize;
             //Writing the version of my lovely program \_(^_^)_/
-            MakeHeader.prog_version = ENTANGLE_CORE;
+            MakeHeader.core_version = ENTANGLE_CORE;
             //Creating, generating and copying file encryption keys
             byte file_keys[32]; rnd.GenerateBlock(file_keys, 32);
             memcpy(MakeHeader.keys, file_keys, 32);
@@ -516,11 +546,7 @@ unsigned long long GetFileSize(wxString path)
         {
             FindClose(h);
             h = FindFirstFileW((path+L"\\*.*").wc_str(), &f);
-            if(h == INVALID_HANDLE_VALUE)
-            {
-                AddError(path, "BAD_FS_FNAME");
-                return -1;
-            }
+            if(h == INVALID_HANDLE_VALUE)  return -1;
             wxString temp;
             do
             {
@@ -534,20 +560,17 @@ unsigned long long GetFileSize(wxString path)
         FindClose(h);
         return result;
     }
-    else
-    {
-        AddError(path, "BAD_FS_FNAME");
+    else //Incorrect filename
         return -1;
-    }
 }
 #else
 
 unsigned long long GetFileSize(wxString path)
 {
-    unsigned long long fsize=0;
     DIR *dir = opendir(path.c_str()); //Dir opening attempt
     if(dir)/////////////////FOLDER/////////////////
     {
+        unsigned long long fsize = 0;
         struct dirent *ent; //For reading filenames
         wxString fname; //Name of current file
         while((ent = readdir(dir))!=NULL) //While there are files
@@ -558,14 +581,16 @@ unsigned long long GetFileSize(wxString path)
                 fsize+=GetFileSize(path+"/"+fname);
         }
         closedir(dir);
+        return fsize;
     }///////////////////////////////////////////////
-    else
+    else///////////////USUAL FILE///////////////////
     {
         struct stat st;
         if(stat(path.c_str(), &st)==0)
-            fsize = st.st_size;
+            return st.st_size;
+        else
+            return -1;
     }
-    return fsize;
 }
 
 #endif // __WIN32__
@@ -582,20 +607,21 @@ void EntangleDialog::UpdateProgress()
 
 bool SmartRemove(wxString path, bool safe)
 {
-    if(safe)
+    if(safe) /* If overwriting is required */
     {
         fstream target;
-        //Attempting to open the file
-        target.open(path, ios_base::in | ios_base::binary);
-        if(!target.is_open()) return false;
-        //If opened, getting its size and closing it.
-        target.seekg(0, ios::end); unsigned int fsize = target.tellg();
-        target.close();
-        //Opening the same file for writing
+        //Checking file availability
+        if(!CheckExistance(path)) return false;
+        //If available, getting its size
+        unsigned long long fsize = GetFileSize(path);
+        //Opening this file for writing
         target.open(path, ios_base::out | ios_base::binary);
+        //Being paranoid
+        if(!target.is_open()) return false;
+        //Moving to the beginning
         target.seekp(0, ios::beg);
         //Making some preparations
-        unsigned int dleft, multiple;
+        unsigned long long dleft, multiple;
         dleft = fsize%BUF_SIZE; multiple = fsize-dleft;
         char buffer[BUF_SIZE]; memset(buffer, (int)' ', BUF_SIZE);
         //Overwriting the data
@@ -606,9 +632,10 @@ bool SmartRemove(wxString path, bool safe)
         target.close();
     }
 
+    //Trying usual removing
     if(remove(path.c_str())==0)
         return true;
-
+    //If fails, not giving up (^_^)
     /** Read-Only files removing **/
     #ifdef __WIN32__
     WIN32_FIND_DATA f;
@@ -622,7 +649,26 @@ bool SmartRemove(wxString path, bool safe)
     FindClose(h);
     #endif // _WIN32
 
+    #ifdef __LINUX__
+    if(chmod(path.c_str(), S_IRUSR | S_IWUSR))
+    {
+        if(remove(path.c_str())==0)
+            return true;
+    }
+    #endif // __LINUX__
+
     return false;
+}
+
+bool CheckExistance(wxString path)
+{
+    fstream target;
+    //Attempting to open the file
+    target.open(path, ios_base::in);
+    if(target.is_open())
+        return true;
+    else
+        return false;
 }
 
 bool SmartRename(wxString before, wxString after)
