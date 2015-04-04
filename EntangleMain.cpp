@@ -127,7 +127,7 @@ public:
     DroppedFilesReciever(EntangleDialog * g_dialog) {dialog=g_dialog;}
     bool OnDropFiles(wxCoord x, wxCoord y, const wxArrayString &filenames)
     {
-        for(unsigned int i=0; i<filenames.GetCount(); ++i) drop_files.push_back(filenames[i]);
+        drop_files.insert(drop_files.end(), filenames.begin(), filenames.end());
         dialog->StaticText2->SetLabelText(_("Received ")+wxString::FromDouble(drop_files.GetCount())+_(" file(s)"));
         return true;
     }
