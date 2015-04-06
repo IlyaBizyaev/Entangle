@@ -16,7 +16,6 @@
 #include<wx/dnd.h> //File drag & drop!
 
 #ifdef __WIN32__
-#include "wx_pch.h"
 #include<aes.h> //AES cryptography
 #include<osrng.h>//Random IV
 #include<modes.h>//That's clear ;)
@@ -231,7 +230,7 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& event)
             ++NumFiles;
             continue;
         }
-        if(fsize==ULONG_LONG_MAX) //GetFileSize() went wrong
+        if(fsize==-1) //GetFileSize() went wrong
         {
             tasks[i]="SKIP";
             AddError(tasks[i], "BAD_FS_FNAME");
