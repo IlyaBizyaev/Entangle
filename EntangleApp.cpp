@@ -7,10 +7,6 @@
  * License:   GNU GPL v3
  **************************************************************/
 
-#ifdef __WIN32__
-#include "wx_pch.h"
-#endif
-
 #include "EntangleApp.h"
 
 //(*AppHeaders
