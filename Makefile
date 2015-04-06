@@ -1,7 +1,6 @@
 CC=g++
 CFLAGS=-I/usr/lib/x86_64-linux-gnu/wx/include/gtk2-unicode-3.0 -I/usr/include/wx-3.0 -D_FILE_OFFSET_BITS=64 -D__WXGTK__ -pthread -Wall -O2 -c
 CRYPTOPP=-lcryptopp
-LANGPROC=msgfmt -o Entangle.mo Entangle.po
 
 build:
 	$(CC) $(CFLAGS) EntangleApp.cpp -o EntangleApp.o
