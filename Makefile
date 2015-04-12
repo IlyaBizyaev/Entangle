@@ -2,8 +2,8 @@ CC=g++
 ### DEFINITIONS ###
 ifeq ($(OS),Windows_NT)
 # FOR WINDOWS
-WXDIR=C:\wxWidgets-3.0.2	# wxWidgets directory (redefine if incorrect)
-CRYPTDIR=C:\cryptopp562\	# Crypto++ directory  (redefine if incorrect)
+WXDIR=C:\wxWidgets-3.0.2
+CRYPTDIR='C:\cryptopp562\'
 CFLAGS=-Wall -pipe -mthreads -D__GNUWIN32__ -D__WXMSW__ -DwxUSE_UNICODE -O2 -I$(WXDIR)\include -I$(CRYPTDIR) -I$(WXDIR)\lib\gcc_lib\mswu -c
 LIBS=-lwxmsw30u_core -lwxbase30u -lwxpng -lwxjpeg -lwxtiff -lwxzlib -lkernel32 -lgdi32 -lwinspool -lcomdlg32 -lshell32 -lole32 -loleaut32 -luuid -lcomctl32
 else
