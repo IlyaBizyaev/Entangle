@@ -1,12 +1,12 @@
 # Entangle
-![Entangle Logo](http://entangle.ucoz.net/Ent2.png)
+![Entangle Logo](http://entangle.ucoz.net/ReDesigned.png)
 ![Windows](http://entangle.ucoz.net/windows_screenshot.jpg) ![Ubuntu](http://entangle.ucoz.net/ubuntu_screenshot.png)
 ## Description
 Entangle is a simple application, designed to help users protect their private and personal data in a few clicks.
 Entangle is built using wxWidgets and Crypto++ libraries, which makes it cross-platform.
 
 **Project website:** http://entangle.ucoz.net/
-## Compiling
+## Building from sources
 ### Linux
 To build the application on Linux, you need to install the following packages:
 - `libwxgtk3.0` and `libwxgtk3.0-dev`
@@ -18,6 +18,15 @@ To build the application on Linux, you need to install the following packages:
 On Windows, you have to download wxWidgets and Crypto++ libraries from official websites and build them manually.
 
 **Supported compilers:** GCC, MinGW.
+
+### Compilation
+```
+cd ~/Downloads/Entangle-unstable/ # Depends on the location
+make
+sudo make install
+make clean
+```
+**Note.** You may need to redefine `WXDIR` and `CRYPTDIR` constants on Windows.
 
 ## Note
 For now, this application is under active development, which means it is not for public usage; so, the "master" branch is empty. However, you can see the pre-release code in the "unstable" branch.
