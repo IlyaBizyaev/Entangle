@@ -37,7 +37,7 @@ class EntangleDialog: public wxDialog
         void OnQuit(wxCommandEvent& event);
         void OnAbout(wxCommandEvent& event);
         void OnButton1Click(wxCommandEvent& event);
-        void Process(wxString first, byte key[]);
+        void Process(wxString name, byte key[]);
         //*)
 
         //(*Identifiers(EntangleDialog)
