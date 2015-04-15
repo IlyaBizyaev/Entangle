@@ -12,7 +12,8 @@
 #include<fstream>  //Read/write operations
 #include<string>   //Needed for mode check (ONCE!)
 #include<stdio.h>  //For file renaming
-#include<clocale>  //For languages support
+#include<clocale>  //For correct symbol display
+#include<limits.h>
 #include<wx/dnd.h> //File drag & drop!
 
 #ifdef __WIN32__
@@ -40,9 +41,7 @@ using namespace CryptoPP;
 
 unsigned long long GetFileSize(wxString path); //Works on Unix
 void AddError(wxString, wxString);
-bool CheckExistance(wxString path);
 bool SmartRemove(wxString path, bool safe = false);
-bool SmartRename(wxString before, wxString after);
 void GoodFinish(fstream&, fstream&, wxString&, wxString&);
 
 int NumFiles=0, ShowProgress=0;
@@ -230,7 +229,7 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& event)
             ++NumFiles;
             continue;
         }
-        if(fsize==-1) //GetFileSize() went wrong
+        if(fsize==ULONG_LONG_MAX) //If GetFileSize() went wrong
         {
             tasks[i]="SKIP";
             AddError(tasks[i], "BAD_FS_FNAME");
@@ -271,65 +270,47 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& event)
         StaticText2->SetLabelText(_("Complete (")+wxString::FromDouble(NumFiles)+_(" file(s))"));
 }
 
-void EntangleDialog::Process(wxString first, byte key[])
+void EntangleDialog::Process(wxString name, byte key[])
 {
-    #ifdef __WIN32__
-    WIN32_FIND_DATA f;
-    HANDLE h = FindFirstFile(wxString(first+"/*").wc_str() , &f);
     wxASSERT(Total!=0);
-    /////////////////////FOLDER/////////////////////
-    if(h!=INVALID_HANDLE_VALUE)
-	{
-		wxString fname; //Name of current file
-		do
-		{
-			fname = f.cFileName;
-			//Not this folder and not outer one
-            if(fname!="."&&fname!="..")
-                Process(first+"/"+fname, key);
-		} while(FindNextFile(h, &f));
-		CloseHandle(h);
-	}
-    #else
-    DIR *dir = opendir(first.c_str()); //Dir opening attempt
-    wxASSERT(Total!=0);
-    if(dir)/////////////////FOLDER/////////////////
+    /** Cross-platform directory search **/
+    if(wxDirExists(name)) //If that's a folder
     {
-        struct dirent *ent; //For reading filenames
-        wxString fname; //Name of current file
-        while((ent = readdir(dir))!=NULL) //While there are files
+        wxString searcher = wxFindFirstFile(name+"/*");
+        while (!searcher.empty()) //While there are files
         {
-            fname=ent->d_name; //For easiness
-            //Not this folder and not the outer one.
-            if(fname!="."&&fname!="..")
-                Process(first+"/"+fname, key);
+            Process(searcher, key);
+            searcher = wxFindNextFile();
         }
-        closedir(dir);
-    }///////////////////////////////////////////////
-    #endif // __WIN32__
+    }
     else//////////////////FILE//////////////////////
     {
         fstream In, Out;
         //Renaming file
         #ifdef __WIN32__
-        size_t cut = first.find_last_of('\\');
+        size_t cut = name.find_last_of('\\');
         #else
-        size_t cut = first.find_last_of('/');
+        size_t cut = name.find_last_of('/');
         #endif // __WIN32__
-        wxString temp_path = first.substr(0, cut+1)+"TMP.TMP";
-        if(!SmartRename(first, temp_path)) return;
+        //Renaming the file which is being processed to "TMP.TMP"
+        wxString temp_path = name.substr(0, cut+1)+"TMP.TMP";
+        if(!wxRenameFile(name, temp_path))
+        {
+            AddError(name, "BAD_RENAME");
+            return;
+        }
         //Opening files
         In.open(temp_path, ios_base::in|ios_base::binary);
         if(!In.is_open())
         {
-            AddError(first, "BAD_IN_OPEN");
+            AddError(name, "BAD_IN_OPEN");
             return;
         }
-        Out.open(first, ios_base::out|ios_base::trunc|ios_base::binary);
+        Out.open(name, ios_base::out|ios_base::trunc|ios_base::binary);
         if(!Out.is_open())
         {
-            GoodFinish(In, Out, temp_path, first);
-            AddError(first, "BAD_RES_CREATE");
+            GoodFinish(In, Out, temp_path, name);
+            AddError(name, "BAD_RES_CREATE");
             return;
         }
         /** <<<<<<< MOST IMPORTANT PART >>>>>>> **/
@@ -338,7 +319,7 @@ void EntangleDialog::Process(wxString first, byte key[])
         if(verify=="ENTANGLE")
         {
             /**DECRYPTION**/
-            show_str = _("Decrypting ")+first.substr(cut+1, first.Length()-cut-1);
+            show_str = _("Decrypting ")+name.substr(cut+1, name.Length()-cut-1);
             In.get();
             //Reserving space for IV, decrypted data and retrieved header
             byte iv[16]; byte * Retrieved; Header DecryptedHeader;
@@ -371,22 +352,22 @@ void EntangleDialog::Process(wxString first, byte key[])
             }
            	catch(CryptoPP::InvalidArgument& e)
             {
-                AddError(first, "INV_ARGUMENT");
-                GoodFinish(In, Out, temp_path, first);
+                AddError(name, "INV_ARGUMENT");
+                GoodFinish(In, Out, temp_path, name);
                 return;
             }
             catch(CryptoPP::AuthenticatedSymmetricCipher::BadState& e)
             {
                 // Pushing PDATA before ADATA results in:
-                AddError(first, "BAD_STATE");
-                GoodFinish(In, Out, temp_path, first);
+                AddError(name, "BAD_STATE");
+                GoodFinish(In, Out, temp_path, name);
                 return;
             }
             catch(CryptoPP::HashVerificationFilter::HashVerificationFailed& e)
             {
                 //Caught HashVerificationFailed
-                AddError(first, "BAD_PASSWORD");
-                GoodFinish(In, Out, temp_path, first);
+                AddError(name, "BAD_PASSWORD");
+                GoodFinish(In, Out, temp_path, name);
                 return;
             }
             /** Comparing cores **/
@@ -395,10 +376,10 @@ void EntangleDialog::Process(wxString first, byte key[])
                 int that_core = DecryptedHeader.core_version;
                 //The core is newer and the user needs an upgrade (^_^)
                 if(that_core > ENTANGLE_CORE)
-                    AddError(first, "BETTER_CORE");
+                    AddError(name, "BETTER_CORE");
                 else //The core is older, an outdated version is needed.
-                    AddError(first, "ANCIENT_CORE");
-                GoodFinish(In, Out, temp_path, first);
+                    AddError(name, "ANCIENT_CORE");
+                GoodFinish(In, Out, temp_path, name);
                 return;
             }
             /** CFB Mode Processing **/
@@ -429,7 +410,7 @@ void EntangleDialog::Process(wxString first, byte key[])
         else
         {
             /** ENCRYPTION **/
-            show_str = _("Encrypting ")+first.substr(cut+1, first.Length()-cut-1);
+            show_str = _("Encrypting ")+name.substr(cut+1, name.Length()-cut-1);
             In.seekg(0, ios::beg);
             Out << "ENTANGLE" << endl;
             //Creating, generating and writing the IV
@@ -468,21 +449,21 @@ void EntangleDialog::Process(wxString first, byte key[])
             catch(CryptoPP::BufferedTransformation::NoChannelSupport& e)
             {
                 // The tag must go in to the default channel
-                AddError(first, "NO_CH_SUPPORT");
-                GoodFinish(In, Out, temp_path, first);
+                AddError(name, "NO_CH_SUPPORT");
+                GoodFinish(In, Out, temp_path, name);
                 return;
             }
             catch(CryptoPP::AuthenticatedSymmetricCipher::BadState& e)
             {
                 // TODO: Get more info about this.
-                AddError(first, "BAD_STATE");
-                GoodFinish(In, Out, temp_path, first);
+                AddError(name, "BAD_STATE");
+                GoodFinish(In, Out, temp_path, name);
                 return;
             }
             catch(CryptoPP::InvalidArgument& e)
             {
-                AddError(first, "INV_ARGUMENT");
-                GoodFinish(In, Out, temp_path, first);
+                AddError(name, "INV_ARGUMENT");
+                GoodFinish(In, Out, temp_path, name);
                 return;
             }
 
@@ -518,7 +499,7 @@ void EntangleDialog::Process(wxString first, byte key[])
         In.close(); Out.close();
         if(!SmartRemove(temp_path, true))
         {
-            AddError(first, "BAD_TEMP_DELETE");
+            AddError(name, "BAD_TEMP_DELETE");
             return;
         }
         ++NumFiles;
@@ -544,7 +525,7 @@ unsigned long long GetFileSize(wxString path)
         {
             FindClose(h);
             h = FindFirstFileW((path+L"\\*.*").wc_str(), &f);
-            if(h == INVALID_HANDLE_VALUE)  return -1;
+            if(h == INVALID_HANDLE_VALUE)  return ULONG_LONG_MAX;
             wxString temp;
             do
             {
@@ -559,7 +540,7 @@ unsigned long long GetFileSize(wxString path)
         return result;
     }
     else //Incorrect filename
-        return -1;
+        return ULONG_LONG_MAX;
 }
 #else
 
@@ -587,7 +568,7 @@ unsigned long long GetFileSize(wxString path)
         if(stat(path.c_str(), &st)==0)
             return st.st_size;
         else
-            return -1;
+            return ULONG_LONG_MAX;
     }
 }
 
@@ -609,7 +590,7 @@ bool SmartRemove(wxString path, bool safe)
     {
         fstream target;
         //Checking file availability
-        if(!CheckExistance(path)) return false;
+        if(!wxFileExists(path)) return false;
         //If available, getting its size
         unsigned long long fsize = GetFileSize(path);
         //Opening this file for writing
@@ -658,33 +639,6 @@ bool SmartRemove(wxString path, bool safe)
     return false;
 }
 
-bool CheckExistance(wxString path)
-{
-    fstream target;
-    //Attempting to open the file
-    target.open(path, ios_base::in);
-    if(target.is_open())
-        return true;
-    else
-        return false;
-}
-
-bool SmartRename(wxString before, wxString after)
-{
-    //Trying usual renaming
-    if(rename(before.c_str(), after.c_str())==0)
-        return true;
-    //If it fails, deleting the file with such a name...
-    if(SmartRemove(after))
-    {
-        //...and retrying.
-        if(rename(before.c_str(), after.c_str())==0)
-            return true;
-    }
-    //If nothing helps, throwing an error.
-    AddError(before, "BAD_RENAME");
-    return false;
-}
 
 void AddError(wxString fname, wxString code)
 {
@@ -693,13 +647,13 @@ void AddError(wxString fname, wxString code)
     mistakes.push_back(fname+" ("+code+")");
 }
 
-void GoodFinish(fstream & In, fstream & Out, wxString & temp_path, wxString & first)
+void GoodFinish(fstream & In, fstream & Out, wxString & temp_path, wxString & name)
 {
     //Checking whether any files are open.
     //If so, closing them.
     if(In.is_open()) In.close();
     if(Out.is_open()) Out.close();
     //Renaming the temp file into its original name.
-    SmartRename(temp_path, first);
+    wxRenameFile(temp_path, name);
     wxTheApp->Yield();
 }
