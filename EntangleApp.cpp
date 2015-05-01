@@ -25,7 +25,7 @@ bool EntangleApp::OnInit()
     {
     	if(m_lang == wxLANGUAGE_UNKNOWN)
             m_lang = (wxLanguage)wxLocale::GetSystemLanguage();
-        if(m_lang==wxLANGUAGE_UKRAINIAN||m_lang==wxLANGUAGE_RUSSIAN_UKRAINE||m_lang==wxLANGUAGE_KAZAKH)
+        if(m_lang==wxLANGUAGE_RUSSIAN_UKRAINE||m_lang==wxLANGUAGE_KAZAKH)
             m_lang=wxLANGUAGE_RUSSIAN;
         if (!m_locale.Init(m_lang, wxLOCALE_DONT_LOAD_DEFAULT))
             wxMessageBox("This language is not supported!");

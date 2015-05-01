@@ -29,6 +29,7 @@ endif
 i18n:
 	msgfmt -o ./ru/Entangle.mo ./ru/Entangle.po
 	msgfmt -o ./de/Entangle.mo ./de/Entangle.po
+	msgfmt -o ./ua/Entangle.mo ./ua/Entangle.po
 install:
 	install Entangle /usr/local/bin
 uninstall:
