@@ -1,0 +1,149 @@
+# Entangle 1.0
+# Copyright (C) 2015 Ilya Bizyaev, Rostyslav Kurylo
+# This file is distributed under the same license as the Entangle package.
+# Ilya Bizyaev <bizyaev@lyceum62.ru>, 2015.
+# Rostyslav Kurylo <rostawesomegd@gmail.com>
+msgid ""
+msgstr ""
+"Project-Id-Version: Entangle 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2015-02-10 10:59+0300\n"
+"PO-Revision-Date: 2015-02-12 10:49+0300\n"
+"Last-Translator: Rostyslav Kurylo <rostawesomegd@gmail.com>\n"
+"Language-Team: Ukrainian <rostawesomegd@gmail.com>\n"
+"Language: ua\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: EntangleMain.cpp:59 EntangleMain.cpp:286
+msgid "Starting..."
+msgstr "Починаю..."
+
+#: EntangleMain.cpp:164
+msgid "Entangle"
+msgstr "Entangle"
+
+#: EntangleMain.cpp:167 EntangleMain.cpp:738
+msgid "Choose files or folders:"
+msgstr "Оберіть файли або теки:"
+
+#: EntangleMain.cpp:172 EntangleMain.cpp:708
+msgid "Enter the password:"
+msgstr "Введіть пароль:"
+
+#: EntangleMain.cpp:174
+msgid "Mode"
+msgstr "Режим"
+
+#: EntangleMain.cpp:182
+msgid "About"
+msgstr "Автор"
+
+#: EntangleMain.cpp:184
+msgid "Start"
+msgstr "Почати"
+
+#: EntangleMain.cpp:227
+msgid "Simple and user-friendly application\nfor AES-based data encryption"
+msgstr "Простий і зручний додаток\nдля AES-шифрування даних"
+
+#: EntangleMain.cpp:240
+msgid "No tasks selected!"
+msgstr "Завдання не вибрані!"
+
+#: EntangleMain.cpp:245
+msgid "Enter password first!"
+msgstr "Спочатку введіть пароль!"
+
+#: EntangleMain.cpp:265
+msgid "Does not exist"
+msgstr "Не існує"
+
+#: EntangleMain.cpp:279 EntangleMain.cpp:339
+msgid "Cannot access"
+msgstr "Немає дозволу"
+
+#: EntangleMain.cpp:285
+msgid "Processing..."
+msgstr "Обробка..."
+
+#: EntangleMain.cpp:286
+msgid "Progress"
+msgstr "Прогресс"
+
+#: EntangleMain.cpp:297
+msgid "Done!"
+msgstr "Готово!"
+
+#: EntangleMain.cpp:301
+msgid "Went wrong :("
+msgstr "Не вдалось :("
+
+#: EntangleMain.cpp:302
+msgid "Something went wrong:"
+msgstr "Щось трапилось не так:"
+
+#: EntangleMain.cpp:307
+msgid "Complete ("
+msgstr "Готово ("
+
+#: EntangleMain.cpp:307
+msgid " file(s))"
+msgstr " файл(ів)"
+
+#: EntangleMain.cpp:350
+msgid "Cannot open the input file"
+msgstr "Не можу відкрити вхідний файл"
+
+#: EntangleMain.cpp:359
+msgid "Cannot create an output file"
+msgstr "Не можу відкрити вихідний файл"
+
+#: EntangleMain.cpp:367
+msgid "Decrypting "
+msgstr "Розшифровую "
+
+#: EntangleMain.cpp:413
+msgid "Invalid password or mode"
+msgstr "Невірний пароль або режим"
+
+#: EntangleMain.cpp:423
+msgid "Requires newer program version"
+msgstr "Потребує новішої версії"
+
+#: EntangleMain.cpp:425
+msgid "Was encrypted by older version"
+msgstr "Зашифрований застарілою версією"
+
+#: EntangleMain.cpp:457
+msgid "Encrypting "
+msgstr "Шифрую "
+
+#: EntangleMain.cpp:548
+msgid "Cannot rename the result"
+msgstr "Не можу перейменувати результат"
+
+#: EntangleMain.cpp:702
+msgid "Good!"
+msgstr "Чудово!"
+
+#: EntangleMain.cpp:710
+msgid "Too short"
+msgstr "Надто короткий"
+
+#: EntangleMain.cpp:728 EntangleMain.cpp:730
+msgid "Selected "
+msgstr "Обраний"
+
+#: EntangleMain.cpp:728
+msgid ", received "
+msgstr ", отримано"
+
+#: EntangleMain.cpp:730 EntangleMain.cpp:735
+msgid " object(s)"
+msgstr " об'єкт(ів)"
+
+#: EntangleMain.cpp:735
+msgid "Received "
+msgstr "Отримано "
