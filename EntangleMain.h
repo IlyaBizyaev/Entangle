@@ -11,7 +11,7 @@
 #define ENTANGLEMAIN_H
 
 //(*Headers(EntangleDialog)
-#include <wx/msgdlg.h>
+#include <wx/bmpbuttn.h>
 #include <wx/progdlg.h>
 #include <wx/dialog.h>
 #include <wx/sizer.h>
@@ -30,6 +30,9 @@ class EntangleDialog: public wxDialog
         virtual ~EntangleDialog();
         friend class DroppedFilesReciever;
         void UpdateProgress();
+        void OnFileReselect(wxTreeEvent& event);
+        void UpdateTasks();
+        void SetText(int line, wxString message);
 
     private:
 
@@ -38,16 +41,19 @@ class EntangleDialog: public wxDialog
         void OnAbout(wxCommandEvent& event);
         void OnButton1Click(wxCommandEvent& event);
         void Process(wxString name, byte key[]);
+        void OnLockClick(wxCommandEvent& event);
+        void OnPasswordChange(wxCommandEvent& event);
         //*)
 
         //(*Identifiers(EntangleDialog)
         static const long ID_STATICTEXT1;
         static const long ID_GENERICDIRCTRL1;
         static const long ID_STATICTEXT2;
+        static const long ID_STATICTEXT3;
         static const long ID_TEXTCTRL1;
+        static const long ID_BITMAPBUTTON1;
         static const long ID_BUTTON2;
         static const long ID_BUTTON1;
-        static const long ID_MESSAGEDIALOG1;
         static const long ID_PROGRESSDIALOG1;
         //*)
 
@@ -57,9 +63,10 @@ class EntangleDialog: public wxDialog
         wxButton* Button1;
         wxStaticText* StaticText1;
         wxButton* AboutButton;
-        wxMessageDialog* MessageDialog1;
+        wxStaticText* StaticText3;
         wxTextCtrl* TextCtrl1;
         wxStaticText* StaticText2;
+        wxBitmapButton* BitmapButton1;
         //*)
 
         DECLARE_EVENT_TABLE()

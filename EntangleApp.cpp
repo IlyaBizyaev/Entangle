@@ -8,6 +8,7 @@
  **************************************************************/
 
 #include "EntangleApp.h"
+#include <wx/msgdlg.h>
 
 //(*AppHeaders
 #include "EntangleMain.h"
@@ -35,9 +36,9 @@ bool EntangleApp::OnInit()
             m_locale.AddCatalog("fileutils");
         #endif
     	EntangleDialog Dlg(0);
-	#ifdef __WIN32__
-    	Dlg.SetIcon(wxICON(aaaaa));
-	#endif
+        #ifdef __WIN32__
+            Dlg.SetIcon(wxICON(aaaaa));
+        #endif
     	SetTopWindow(&Dlg);
     	Dlg.ShowModal();
     	wxsOK = false;

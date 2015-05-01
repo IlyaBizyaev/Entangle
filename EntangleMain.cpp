@@ -7,14 +7,15 @@
  * License:   GNU GPL v3
  **************************************************************/
 #include "EntangleMain.h"
-#include <wx/msgdlg.h>
 #include "EntangleApp.h"
 #include<fstream>  //Read/write operations
-#include<string>   //Needed for mode check (ONCE!)
-#include<stdio.h>  //For file renaming
+#include<memory> //Needed for mode check (ONCE!)
 #include<clocale>  //For correct symbol display
-#include<limits.h>
 #include<wx/dnd.h> //File drag & drop!
+#include<wx/filename.h>//Useful class
+#include<cstdlib>//For simple RNG
+#include<ctime>//For time()
+#include<wx/aboutdlg.h>
 
 #ifdef __WIN32__
 #include<aes.h> //AES cryptography
@@ -24,7 +25,6 @@
 #include<gcm.h>
 #include<cryptlib.h>
 #else
-#include<dirent.h> //File browsing (UNIX ONLY!!!)
 #include<cryptopp/aes.h> //AES cryptography
 #include<cryptopp/osrng.h>//Random IV
 #include<cryptopp/filters.h>
@@ -35,40 +35,53 @@
 
 #define BUF_SIZE 16384
 #define TAG_SIZE 16
-#define ENTANGLE_CORE 1
+#define ENTANGLE_CORE 2
 using namespace std;
 using namespace CryptoPP;
 
+/** Functions **/
 unsigned long long GetFileSize(wxString path); //Works on Unix
 void AddError(wxString, wxString);
-bool SmartRemove(wxString path, bool safe = false);
+bool SmartRemove(wxString path, bool overwrite = false);
+void RandTempName(wxString & temp_name);
+wxString NumToString(int number);
 void GoodFinish(fstream&, fstream&, wxString&, wxString&);
 
+/** Global variables **/
 int NumFiles=0, ShowProgress=0;
 unsigned long long Total=0, NumBytes=0;
-bool NowWorking=false;
+bool TasksSelected = false, PasswordTypedIn = false, ShouldDecrypt = false, WentWrong = false;
+
+/** Global objects **/
 locale current("");
-wxArrayString drop_files, mistakes;
-wxString show_str="Starting...";
+wxArrayString tasks, drop_files;
+//String which is displayed in ProgressDialog()
+wxString show_str = _("Starting...");
+//Random data generator
 AutoSeededRandomPool rnd;
+
+unsigned long long ULL_MAX = -1;
 
 //My lovely structures ^_^
 struct Header
 {
-    int core_version;           /* Header format version */
-    unsigned long file_size;    /* Size of original file */
-    byte keys[32];              /* AES-256 key storage area */
+    int core_version;                   /* Header format version */
+    unsigned long long file_size;       /* Size of original file */
+    byte keys[32];                      /* AES-256 key storage area */
 };
 
-class EntangleSink : public Bufferless<Sink>
+class EntangleSink : public Bufferless<Sink> /* Array-based sink class for GCM */
 {
 public:
+    //Constructor (accepts pointer to an array and to size_t variable)
     EntangleSink(byte ** g_output, size_t * g_size) : output(g_output), out_size(g_size)
     {   Clean();  }
 
+    //Destructor
     ~EntangleSink()
     {   Clean();  }
 
+    // Function which accepts data from AES/GCM and puts to the linked array
     size_t Put2(const byte *inString, size_t length, int, bool)
     {
         if(!inString || !length)
@@ -83,6 +96,7 @@ public:
         return 0;
     }
 
+    // Clean(): deallocates the array and resets the out_size variable.
     void Clean()
     {
         if(*output!=NULL)
@@ -93,24 +107,27 @@ public:
         *out_size=0;
     }
 private:
-    byte ** output;
-    size_t * out_size;
+    byte ** output;     //Pointer to an array
+    size_t * out_size;  //Stores number of bytes in array
 };
 
 
 //(*InternalHeaders(EntangleDialog)
 #include <wx/string.h>
 #include <wx/intl.h>
+#include <wx/bitmap.h>
+#include <wx/image.h>
 //*)
 
 //(*IdInit(EntangleDialog)
 const long EntangleDialog::ID_STATICTEXT1 = wxNewId();
 const long EntangleDialog::ID_GENERICDIRCTRL1 = wxNewId();
 const long EntangleDialog::ID_STATICTEXT2 = wxNewId();
+const long EntangleDialog::ID_STATICTEXT3 = wxNewId();
 const long EntangleDialog::ID_TEXTCTRL1 = wxNewId();
+const long EntangleDialog::ID_BITMAPBUTTON1 = wxNewId();
 const long EntangleDialog::ID_BUTTON2 = wxNewId();
 const long EntangleDialog::ID_BUTTON1 = wxNewId();
-const long EntangleDialog::ID_MESSAGEDIALOG1 = wxNewId();
 const long EntangleDialog::ID_PROGRESSDIALOG1 = wxNewId();
 //*)
 
@@ -122,56 +139,77 @@ END_EVENT_TABLE()
 class DroppedFilesReciever : public wxFileDropTarget
 {
 public:
-    DroppedFilesReciever(EntangleDialog * g_dialog) {dialog=g_dialog;}
+    DroppedFilesReciever(EntangleDialog * g_dialog) { dialog=g_dialog; }
+    //Called when something is dropped onto the window
     bool OnDropFiles(wxCoord x, wxCoord y, const wxArrayString &filenames)
     {
+        //Save paths to the global array
         drop_files.insert(drop_files.end(), filenames.begin(), filenames.end());
-        dialog->StaticText2->SetLabelText(_("Received ")+wxString::FromDouble(drop_files.GetCount())+_(" file(s)"));
+        dialog->UpdateTasks();
         return true;
     }
 private:
-    EntangleDialog * dialog;
+    EntangleDialog * dialog; //Pointer to the dialog, needed to refresh the StaticText
 };
 
 
 //wxDIRCTRL_MULTIPLE
-//_("Simple application for protecting\nyour personal data\n(C) Ilya Bizyaev, 2015")+"\nbizyaev@lyceum62.ru"
 EntangleDialog::EntangleDialog(wxWindow* parent,wxWindowID id)
 {
     //(*Initialize(EntangleDialog)
     wxFlexGridSizer* FlexGridSizer1;
+    wxFlexGridSizer* FlexGridSizer2;
     wxBoxSizer* BoxSizer1;
 
     Create(parent, wxID_ANY, _("Entangle"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE, _T("wxID_ANY"));
     SetFocus();
     FlexGridSizer1 = new wxFlexGridSizer(5, 1, 0, 0);
     StaticText1 = new wxStaticText(this, ID_STATICTEXT1, _("Choose files or folders:"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICTEXT1"));
-    FlexGridSizer1->Add(StaticText1, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    FlexGridSizer1->Add(StaticText1, 1, wxTOP|wxLEFT|wxRIGHT|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     GenericDirCtrl1 = new wxGenericDirCtrl(this, ID_GENERICDIRCTRL1, wxEmptyString, wxDefaultPosition, wxSize(190,190), wxDIRCTRL_MULTIPLE, wxEmptyString, 0, _T("ID_GENERICDIRCTRL1"));
-    FlexGridSizer1->Add(GenericDirCtrl1, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, wxDLG_UNIT(this,wxSize(5,0)).GetWidth());
+    FlexGridSizer1->Add(GenericDirCtrl1, 1, wxTOP|wxLEFT|wxRIGHT|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, wxDLG_UNIT(this,wxSize(5,0)).GetWidth());
+    FlexGridSizer2 = new wxFlexGridSizer(2, 2, 0, 0);
     StaticText2 = new wxStaticText(this, ID_STATICTEXT2, _("Enter the password:"), wxDefaultPosition, wxDefaultSize, wxALIGN_CENTRE, _T("ID_STATICTEXT2"));
-    FlexGridSizer1->Add(StaticText2, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    FlexGridSizer2->Add(StaticText2, 1, wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    StaticText3 = new wxStaticText(this, ID_STATICTEXT3, _("Mode"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICTEXT3"));
+    FlexGridSizer2->Add(StaticText3, 1, wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     TextCtrl1 = new wxTextCtrl(this, ID_TEXTCTRL1, wxEmptyString, wxDefaultPosition, wxSize(150,28), 0, wxDefaultValidator, _T("ID_TEXTCTRL1"));
-    FlexGridSizer1->Add(TextCtrl1, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    FlexGridSizer2->Add(TextCtrl1, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    BitmapButton1 = new wxBitmapButton(this, ID_BITMAPBUTTON1, wxBitmap(wxImage(_T("/home/ilya/Projects/Entangle/Encryption.png"))), wxDefaultPosition, wxSize(35,35), wxBU_AUTODRAW, wxDefaultValidator, _T("ID_BITMAPBUTTON1"));
+    FlexGridSizer2->Add(BitmapButton1, 1, wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    FlexGridSizer1->Add(FlexGridSizer2, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     BoxSizer1 = new wxBoxSizer(wxHORIZONTAL);
     AboutButton = new wxButton(this, ID_BUTTON2, _("About"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_BUTTON2"));
     BoxSizer1->Add(AboutButton, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     Button1 = new wxButton(this, ID_BUTTON1, _("Start"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_BUTTON1"));
     Button1->SetFocus();
     BoxSizer1->Add(Button1, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
-    FlexGridSizer1->Add(BoxSizer1, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    FlexGridSizer1->Add(BoxSizer1, 1, wxBOTTOM|wxLEFT|wxRIGHT|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     SetSizer(FlexGridSizer1);
-    MessageDialog1 = new wxMessageDialog(this, _("Simple application for protecting\nyour personal data\n(C) Ilya Bizyaev, 2015")+"\nbizyaev@lyceum62.ru", _("About"), wxOK|wxICON_INFORMATION, wxDefaultPosition);
     FlexGridSizer1->Fit(this);
     FlexGridSizer1->SetSizeHints(this);
     Center();
 
+    Connect(ID_TEXTCTRL1,wxEVT_COMMAND_TEXT_UPDATED,(wxObjectEventFunction)&EntangleDialog::OnPasswordChange);
+    Connect(ID_BITMAPBUTTON1,wxEVT_COMMAND_BUTTON_CLICKED,(wxObjectEventFunction)&EntangleDialog::OnLockClick);
     Connect(ID_BUTTON2,wxEVT_COMMAND_BUTTON_CLICKED,(wxObjectEventFunction)&EntangleDialog::OnAbout);
     Connect(ID_BUTTON1,wxEVT_COMMAND_BUTTON_CLICKED,(wxObjectEventFunction)&EntangleDialog::OnButton1Click);
     //*)
-    GenericDirCtrl1->CollapseTree();
+
+    //Set the locale to the system-default
     locale::global(current);
+    //Enable Drag & Drop
     SetDropTarget(new DroppedFilesReciever(this));
+    //Randomize the RNG
+    srand(time(0));
+    //Denying to enter more than 16 characters
+    TextCtrl1->SetMaxLength(16);
+    //Collapse the file choosing tree
+    GenericDirCtrl1->CollapseTree();
+    //Remove any default selections
+    GenericDirCtrl1->UnselectAll();
+    //Set event processor for GenericDirControl
+    Bind(wxEVT_DIRCTRL_SELECTIONCHANGED, &EntangleDialog::OnFileReselect, this, ID_GENERICDIRCTRL1);
 }
 
 EntangleDialog::~EntangleDialog()
@@ -181,46 +219,52 @@ EntangleDialog::~EntangleDialog()
 }
 
 
-void EntangleDialog::OnAbout(wxCommandEvent& event)
+void EntangleDialog::OnAbout(wxCommandEvent& WXUNUSED(event))
 {
-    MessageDialog1->ShowModal();
+    wxAboutDialogInfo aboutInfo;
+    aboutInfo.SetName("Entangle");
+    aboutInfo.SetVersion("0.8");
+    aboutInfo.SetDescription(_("Simple and user-friendly application\nfor AES-based data encryption"));
+    aboutInfo.SetCopyright("(C) Ilya Bizyaev <bizyaev@lyceum62.ru>, 2015");
+    aboutInfo.SetWebSite("http://entangle.ucoz.net");
+    wxAboutBox(aboutInfo, this);
+    wxTheApp->SafeYield(NULL, false);
 }
 
 void EntangleDialog::OnButton1Click(wxCommandEvent& event)
 {
     NumFiles=0; NumBytes=0; Total=0; //Clear All
-    //Get and check password
+    //Check if tasks are selected and the password is typed in
+    if(!TasksSelected)
+    {
+        SetText(1, _("No tasks selected!"));
+        return;
+    }
+    if(!PasswordTypedIn)
+    {
+        SetText(2, _("Enter password first!"));
+        return;
+    }
+    //Get the password
     wxString wxpassword = TextCtrl1->GetLineText(0);
-    if(wxpassword.length()<16)
-    {
-        StaticText2->SetLabelText(_("Too short"));
-        return;
-    }
-    else if(wxpassword.length()>16)
-    {
-        StaticText2->SetLabelText(_("Too long"));
-        return;
-    }
     //Assign password to the key
     byte key[16];
     const char * charKey = wxpassword.c_str().AsChar();
     memcpy(key, (byte*)charKey, 16);
-    //Get tasks
-    wxArrayString tasks;
-    GenericDirCtrl1->GetPaths(tasks);
-    //Copying the Drag&Drop array
+    //Adding the Drag & Drop array
     tasks.insert(tasks.end(), drop_files.begin(), drop_files.end());
     drop_files.Clear();
     //If there are no tasks
-    if(tasks.IsEmpty())
-    {
-        wxMessageBox(_("No tasks!"));
-        return;
-    }
-    /* ESTIMATING REQUIED WORK */
+    /* ESTIMATING REQUIRED WORK */
     unsigned long long fsize;
     for(size_t i=0; i<tasks.GetCount(); ++i)
     {
+        if(!wxFileName::Exists(tasks[i]))
+        {
+            tasks[i]="SKIP";
+            AddError(tasks[i], _("Does not exist"));
+            continue;
+        }
         fsize = GetFileSize(tasks[i]);
         //Processing exceptions
         if(fsize==0) //Empty file
@@ -229,53 +273,48 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& event)
             ++NumFiles;
             continue;
         }
-        if(fsize==ULONG_LONG_MAX) //If GetFileSize() went wrong
+        if(fsize==ULL_MAX) //If GetFileSize() went wrong
         {
             tasks[i]="SKIP";
-            AddError(tasks[i], "BAD_FS_FNAME");
+            AddError(tasks[i], _("Cannot access"));
             continue;
         }
         Total+=fsize;
     }
 
-    StaticText2->SetLabelText(_("Waiting...")); wxYield();
+    SetText(2, _("Processing...")); wxYield();
     ProgressDialog1 = new wxProgressDialog(_("Progress"), _("Starting..."), 100, this);
     ProgressDialog1->CenterOnParent();
     ProgressDialog1->Show();
-    ProgressDialog1->Update(0, _("Starting..."));
+    ProgressDialog1->Update(0, show_str);
 
-    NowWorking = true;
-    //Processing the files
+    /* PROCESSING THE TASKS */
     for(size_t i=0; i<tasks.GetCount(); ++i)
     {
         if(tasks[i]!="SKIP")
             Process(tasks[i], key);
     }
     ProgressDialog1->Update(100, _("Done!"));
-    NowWorking = false;
 
-    if(!mistakes.IsEmpty())
+    if(WentWrong)
     {
-        wxString ErrorList = _("Some files were not processed:");
-        for(size_t i=0; i<mistakes.GetCount(); ++i)
-        {
-            ErrorList+=("\n"+mistakes[i]);
-            if(i==10) {ErrorList=ErrorList+_("\n...and ")+wxString::FromDouble(mistakes.GetCount()-10)+_(" more ones."); break;}
-        }
-        StaticText2->SetLabelText(_("Went wrong :("));
-        wxMessageBox(ErrorList, _("Error list"), wxICON_ERROR | wxSTAY_ON_TOP);
-        mistakes.Clear();
+        SetText(2, _("Went wrong :("));
+        wxLogError(_("Something went wrong:"));
+        wxLog::FlushActive();
+        WentWrong = false;
     }
     else
-        StaticText2->SetLabelText(_("Complete (")+wxString::FromDouble(NumFiles)+_(" file(s))"));
+        SetText(2, _("Complete (")+NumToString(NumFiles)+_(" file(s))"));
 }
 
 void EntangleDialog::Process(wxString name, byte key[])
 {
     wxASSERT(Total!=0);
-    /** Cross-platform directory search **/
-    if(wxDirExists(name)) //If that's a folder
+    /** Checking the object type **/
+    if(wxDirExists(name))////////////////// FOLDER //////////////////////
     {
+        // If that's folder, call Process() recursively
+        // for all the objects inside it.
         wxString searcher = wxFindFirstFile(name+"/*");
         while (!searcher.empty()) //While there are files
         {
@@ -285,42 +324,47 @@ void EntangleDialog::Process(wxString name, byte key[])
     }
     else//////////////////FILE//////////////////////
     {
-        fstream In, Out;
-        //Renaming file
-        #ifdef __WIN32__
-        size_t cut = name.find_last_of('\\');
-        #else
-        size_t cut = name.find_last_of('/');
-        #endif // __WIN32__
-        //Renaming the file which is being processed to "TMP.TMP"
-        wxString temp_path = name.substr(0, cut+1)+"TMP.TMP";
-        if(!wxRenameFile(name, temp_path))
+        //Preparing name for temp file
+        size_t cut = name.find_last_of(wxFILE_SEP_PATH)+1;
+        wxString temp_path = name.substr(0, cut);
+        RandTempName(temp_path);
+        //Required variables
+        unsigned long fsize, checker, dleft;
+        //If encryption, getting file size
+        if(!ShouldDecrypt)
         {
-            AddError(name, "BAD_RENAME");
-            return;
+            fsize = GetFileSize(name);
+            if(fsize==ULL_MAX)
+            {
+                AddError(name, _("Cannot access"));
+                return;
+            }
         }
-        //Opening files
-        In.open(temp_path, ios_base::in|ios_base::binary);
+        /** Opening files **/
+        fstream In, Out;
+        //Opening original file
+        In.open(name, ios_base::in|ios_base::binary);
         if(!In.is_open())
         {
-            AddError(name, "BAD_IN_OPEN");
+            //Can't open the input file
+            AddError(name, _("Cannot open the input file"));
             return;
         }
-        Out.open(name, ios_base::out|ios_base::trunc|ios_base::binary);
+        //Opening the temp file
+        Out.open(temp_path, ios_base::out|ios_base::trunc|ios_base::binary);
         if(!Out.is_open())
         {
+            //Can't open the output file
             GoodFinish(In, Out, temp_path, name);
-            AddError(name, "BAD_RES_CREATE");
+            AddError(name, _("Cannot create an output file"));
             return;
         }
         /** <<<<<<< MOST IMPORTANT PART >>>>>>> **/
-        string verify; In >> verify;
-        unsigned long fsize, checker, dleft;
-        if(verify=="ENTANGLE")
+
+        if(ShouldDecrypt)
         {
             /**DECRYPTION**/
-            show_str = _("Decrypting ")+name.substr(cut+1, name.Length()-cut-1);
-            In.get();
+            show_str = _("Decrypting ")+name.substr(cut, name.Length()-cut);
             //Reserving space for IV, decrypted data and retrieved header
             byte iv[16]; byte * Retrieved; Header DecryptedHeader;
             //Reading the IV
@@ -366,7 +410,7 @@ void EntangleDialog::Process(wxString name, byte key[])
             catch(CryptoPP::HashVerificationFilter::HashVerificationFailed& e)
             {
                 //Caught HashVerificationFailed
-                AddError(name, "BAD_PASSWORD");
+                AddError(name, _("Invalid password or mode"));
                 GoodFinish(In, Out, temp_path, name);
                 return;
             }
@@ -376,9 +420,9 @@ void EntangleDialog::Process(wxString name, byte key[])
                 int that_core = DecryptedHeader.core_version;
                 //The core is newer and the user needs an upgrade (^_^)
                 if(that_core > ENTANGLE_CORE)
-                    AddError(name, "BETTER_CORE");
+                    AddError(name, _("Requires newer program version"));
                 else //The core is older, an outdated version is needed.
-                    AddError(name, "ANCIENT_CORE");
+                    AddError(name, _("Was encrypted by older version"));
                 GoodFinish(In, Out, temp_path, name);
                 return;
             }
@@ -410,16 +454,15 @@ void EntangleDialog::Process(wxString name, byte key[])
         else
         {
             /** ENCRYPTION **/
-            show_str = _("Encrypting ")+name.substr(cut+1, name.Length()-cut-1);
-            In.seekg(0, ios::beg);
-            Out << "ENTANGLE" << endl;
+            show_str = _("Encrypting ")+name.substr(cut, name.Length()-cut);
             //Creating, generating and writing the IV
             byte iv[16]; rnd.GenerateBlock(iv, sizeof(iv));
             Out.write(reinterpret_cast<const char*>(&iv), 16);
-            //Creating and cleaning the Entangle Header
+
+            /** Preparing the Entangle Header **/
+            //Creating and cleaning
             Header MakeHeader; memset(&MakeHeader, 0x00, sizeof(MakeHeader));
-            //Getting and writing the file size
-            In.seekg(0, ios::end); fsize=In.tellg(); In.seekg(0, ios::beg);
+            //Writing the file size
             MakeHeader.file_size = fsize;
             //Writing the version of my lovely program \_(^_^)_/
             MakeHeader.core_version = ENTANGLE_CORE;
@@ -427,6 +470,7 @@ void EntangleDialog::Process(wxString name, byte key[])
             byte file_keys[32]; rnd.GenerateBlock(file_keys, 32);
             memcpy(MakeHeader.keys, file_keys, 32);
             /** Header is now ready for saving! **/
+
             /** Encrypting and writing the header! **/
             try
             {
@@ -497,9 +541,11 @@ void EntangleDialog::Process(wxString name, byte key[])
         }
         /** <<<<<<< FINISHED MAIN PART >>>>>>> **/
         In.close(); Out.close();
-        if(!SmartRemove(temp_path, true))
+        SmartRemove(name, true);
+        if(!wxRenameFile(temp_path, name))
         {
-            AddError(name, "BAD_TEMP_DELETE");
+            //If can`t rename
+            AddError(name, _("Cannot rename the result"));
             return;
         }
         ++NumFiles;
@@ -507,76 +553,43 @@ void EntangleDialog::Process(wxString name, byte key[])
     return;
 }
 
-#ifdef __WIN32__
-unsigned long long GetFileSize(wxString path)
-{
-    //E.g. "E:\Projects\" becomes "E:\Projects"
-    if(path[path.length()-1]=='\\')
-        path = path.substr(0, path.length()-1);
-    //Declaring some objects
-    WIN32_FIND_DATAW f;
-    HANDLE h = FindFirstFileW(path.wc_str(), &f);
-    //If filename is correct
-    if (h!=INVALID_HANDLE_VALUE)
-    {
-        unsigned long long result = 0;
-        /** DIRECTORY **/
-        if(f.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-        {
-            FindClose(h);
-            h = FindFirstFileW((path+L"\\*.*").wc_str(), &f);
-            if(h == INVALID_HANDLE_VALUE)  return ULONG_LONG_MAX;
-            wxString temp;
-            do
-            {
-                temp = f.cFileName;
-                if(temp!=L"."&&temp!=L"..")
-                    result+=GetFileSize(path+L"\\"+temp);
-            }while(FindNextFileW(h, &f));
-        }
-        else /** USUAL FILE **/
-            result =(f.nFileSizeHigh * (MAXDWORD+1)) + f.nFileSizeLow;
-        FindClose(h);
-        return result;
-    }
-    else //Incorrect filename
-        return ULONG_LONG_MAX;
-}
-#else
 
 unsigned long long GetFileSize(wxString path)
 {
-    DIR *dir = opendir(path.c_str()); //Dir opening attempt
-    if(dir)/////////////////FOLDER/////////////////
+    //Check if it does not exist at all
+    if(!wxFileName::Exists(path)) return -1;
+    //Variable for the result
+    wxULongLong result = 0;
+    /** If that's folder **/
+    if(wxDirExists(path))
     {
-        unsigned long long fsize = 0;
-        struct dirent *ent; //For reading filenames
-        wxString fname; //Name of current file
-        while((ent = readdir(dir))!=NULL) //While there are files
+        // If that's folder, call GetFileSize() recursively
+        // for all the objects inside it.
+        wxString searcher = wxFindFirstFile(path+"/*");
+        while (!searcher.empty()) //While there are files
         {
-            fname=ent->d_name; //For easiness
-            //Not this folder and not outer one
-            if(fname!="."&&fname!="..")
-                fsize+=GetFileSize(path+"/"+fname);
+            result+=GetFileSize(searcher);
+            searcher = wxFindNextFile();
         }
-        closedir(dir);
-        return fsize;
-    }///////////////////////////////////////////////
-    else///////////////USUAL FILE///////////////////
-    {
-        struct stat st;
-        if(stat(path.c_str(), &st)==0)
-            return st.st_size;
-        else
-            return ULONG_LONG_MAX;
     }
+    else /** If that's file **/
+    {
+        //If file does not exist
+        if(!wxFileExists(path)) return -1;
+        //Getting file size
+        result = wxFileName::GetSize(path);
+        //If the file is unavailable
+        if(result==wxInvalidSize) return -1;
+    }
+    //If everything is OK
+    return result.GetValue();
 }
-
-#endif // __WIN32__
 
 
 void EntangleDialog::UpdateProgress()
 {
+    //Re-calculates current progress
+    //and updates the ProgressDialog()
     wxASSERT(Total!=0);
     wxASSERT(NumBytes!=0);
     ShowProgress = (int)((double)NumBytes/Total*100);
@@ -584,14 +597,28 @@ void EntangleDialog::UpdateProgress()
     ProgressDialog1->Update(ShowProgress, show_str);
 }
 
-bool SmartRemove(wxString path, bool safe)
+wxString NumToString(int number)
 {
-    if(safe) /* If overwriting is required */
+    return wxString::FromDouble(number);
+}
+
+bool SmartRemove(wxString path, bool overwrite)
+{
+    //If there is already no such file, terminate.
+    if(!wxFileExists(path)) return true;
+    //if read-only, make writable
+    if(!wxFileName::IsFileWritable(path))
+    {
+        wxFileName fname(path); if(!fname.IsOk()) return false;
+        //Setting read-write permissions
+        int permissions = wxS_IRUSR | wxS_IWUSR;
+        fname.SetPermissions(permissions);
+    }
+
+    if(overwrite) /* If overwriting is required */
     {
         fstream target;
-        //Checking file availability
-        if(!wxFileExists(path)) return false;
-        //If available, getting its size
+        //Getting file size
         unsigned long long fsize = GetFileSize(path);
         //Opening this file for writing
         target.open(path, ios_base::out | ios_base::binary);
@@ -611,40 +638,131 @@ bool SmartRemove(wxString path, bool safe)
         target.close();
     }
 
-    //Trying usual removing
-    if(remove(path.c_str())==0)
-        return true;
-    //If fails, not giving up (^_^)
-    /** Read-Only files removing **/
-    #ifdef __WIN32__
-    WIN32_FIND_DATA f;
-    HANDLE h = FindFirstFile(path.wc_str() , &f);
-    if(h == INVALID_HANDLE_VALUE) return false;
-    if(f.dwFileAttributes & FILE_ATTRIBUTE_READONLY)
-    {
-        SetFileAttributes(path.wc_str(), FILE_ATTRIBUTE_NORMAL);
-        if(remove(path.c_str())==0) return true;
-    }
-    FindClose(h);
-    #endif // _WIN32
-
-    #ifdef __LINUX__
-    if(chmod(path.c_str(), S_IRUSR | S_IWUSR))
-    {
-        if(remove(path.c_str())==0)
-            return true;
-    }
-    #endif // __LINUX__
-
+    //Removing
+    if(wxRemoveFile(path)) return true;
+    //If fails, returning false.
     return false;
 }
 
+void RandTempName(wxString & temp_name)
+{
+    wxString new_temp_name;
+    do //While such file exists
+    {
+        //Random filename length (0 - 20):
+        int length = rand()%20+1, range = 0;
+        //Creating new char buffer for the filename
+        char * filename = new char[length+1];
+        //Filling the array (a-z, A-Z, 0-9):
+        for(int i=0; i<length; ++i)
+        {
+            range = rand()%3+1;
+            if(range==1) //Number (1-9):
+                filename[i] = rand()%10+48;
+            else if(range==2) //Capital letter (A-Z):
+                filename[i] = rand()%26+65;
+            else if(range==3) //Small letter (a-z):
+                filename[i] = rand()%26+97;
+        }
+        //Writing zero character at the end
+        filename[length] = '\0';
+        //Building the full path
+        new_temp_name = temp_name + wxString(filename);
+    } while(wxFileExists(new_temp_name));
+    //Returning filename and finishing
+    temp_name = new_temp_name;
+    return;
+}
+
+void EntangleDialog::OnFileReselect(wxTreeEvent& event)
+{
+    this->UpdateTasks();
+}
+
+void EntangleDialog::OnLockClick(wxCommandEvent& event)
+{
+    if(ShouldDecrypt==false)
+    {
+        ShouldDecrypt=true;
+        BitmapButton1->SetBitmap(wxImage("./Decryption.png"));
+    }
+    else
+    {
+        ShouldDecrypt=false;
+        BitmapButton1->SetBitmap(wxImage("./Encryption.png"));
+    }
+}
+
+void EntangleDialog::OnPasswordChange(wxCommandEvent& event)
+{
+    wxString wxpassword = TextCtrl1->GetLineText(0);
+    int length = wxpassword.length();
+    if(length == 16)
+    {
+       SetText(2, _("Good!"));
+       PasswordTypedIn = true;
+    }
+    else
+    {
+        if(length == 0)
+            SetText(2, _("Enter the password:"));
+        else
+            SetText(2, _("Too short")+" ("+NumToString(length)+"/16)");
+            PasswordTypedIn = false;
+    }
+    wxYield();
+}
+
+
+void EntangleDialog::UpdateTasks()
+{
+    GenericDirCtrl1->GetPaths(tasks);
+    int usual = tasks.size(), dropped = drop_files.size();
+    wxString str_usual, str_dropped;
+    str_usual = NumToString(usual);
+    str_dropped = NumToString(dropped);
+    TasksSelected = true;
+    if(usual!=0) //There are files chosen in usual way
+    {
+        if(dropped!=0) //...and there are dropped ones
+            SetText(1, _("Selected ")+str_usual+_(", received ")+str_dropped);
+        else //...and no dropped ones
+            SetText(1, _("Selected ")+str_usual+_(" object(s)"));
+    }
+    else //No files chosen in usual way
+    {
+        if(dropped!=0)  //...but there are dropped ones
+            SetText(1, _("Received ")+str_dropped+_(" object(s)"));
+        else  //...and no dropped ones
+        {
+            SetText(1, _("Choose files or folders:"));
+            TasksSelected = false;
+        }
+    }
+}
+
+
+void EntangleDialog::SetText(int line, wxString message)
+{
+    switch(line)
+    {
+    case 1:
+        StaticText1->SetLabelText(message);
+        break;
+    case 2:
+        StaticText2->SetLabelText(message);
+        break;
+    default:
+        break;
+    }
+}
 
 void AddError(wxString fname, wxString code)
 {
     //Producing a human-readable output
     //and pushing the result to the main list.
-    mistakes.push_back(fname+" ("+code+")");
+    wxLogError(fname+" ("+code+")");
+    WentWrong = true;
 }
 
 void GoodFinish(fstream & In, fstream & Out, wxString & temp_path, wxString & name)
@@ -653,7 +771,6 @@ void GoodFinish(fstream & In, fstream & Out, wxString & temp_path, wxString & na
     //If so, closing them.
     if(In.is_open()) In.close();
     if(Out.is_open()) Out.close();
-    //Renaming the temp file into its original name.
-    wxRenameFile(temp_path, name);
-    wxTheApp->Yield();
+    //Removing the temp file
+    SmartRemove(temp_path);
 }
