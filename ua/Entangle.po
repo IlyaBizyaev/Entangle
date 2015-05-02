@@ -134,7 +134,7 @@ msgstr "Надто короткий"
 
 #: EntangleMain.cpp:728 EntangleMain.cpp:730
 msgid "Selected "
-msgstr "Обраний"
+msgstr "Обраний "
 
 #: EntangleMain.cpp:728
 msgid ", received "
