@@ -10,7 +10,6 @@
 #include "EntangleApp.h"
 #include<fstream>  //Read/write operations
 #include<memory> //Needed for mode check (ONCE!)
-#include<clocale>  //For correct symbol display
 #include<wx/dnd.h> //File drag & drop!
 #include<wx/filename.h>//Useful class
 #include<cstdlib>//For simple RNG
@@ -53,7 +52,6 @@ unsigned long long Total=0, NumBytes=0;
 bool TasksSelected = false, PasswordTypedIn = false, ShouldDecrypt = false, WentWrong = false;
 
 /** Global objects **/
-locale current("");
 wxArrayString tasks, drop_files;
 //String which is displayed in ProgressDialog()
 wxString show_str = _("Starting...");
@@ -196,8 +194,6 @@ EntangleDialog::EntangleDialog(wxWindow* parent,wxWindowID id)
     Connect(ID_BUTTON1,wxEVT_COMMAND_BUTTON_CLICKED,(wxObjectEventFunction)&EntangleDialog::OnButton1Click);
     //*)
 
-    //Set the locale to the system-default
-    locale::global(current);
     //Enable Drag & Drop
     SetDropTarget(new DroppedFilesReciever(this));
     //Randomize the RNG
