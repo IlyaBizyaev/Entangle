@@ -8,7 +8,7 @@ CFLAGS=-Wall -pipe -mthreads -D__GNUWIN32__ -D__WXMSW__ -DwxUSE_UNICODE -O2 -I$(
 LIBS=-lwxmsw30u_core -lwxbase30u -lwxpng -lwxjpeg -lwxtiff -lwxzlib -lkernel32 -lgdi32 -lwinspool -lcomdlg32 -lshell32 -lole32 -loleaut32 -luuid -lcomctl32
 else
 # FOR LINUX
-CFLAGS=-I/usr/lib/x86_64-linux-gnu/wx/include/gtk2-unicode-3.0 -I/usr/include/wx-3.0 -D_FILE_OFFSET_BITS=64 -D__WXGTK__ -pthread -Wall -O2 -c
+CFLAGS=-I/usr/lib/x86_64-linux-gnu/wx/include/gtk2-unicode-3.0 -I/usr/include/wx-3.0 -D_FILE_OFFSET_BITS=64 -D__WXGTK__ -Wall -O2 -c
 endif
 
 build: i18n
@@ -23,7 +23,7 @@ ifeq ($(OS),Windows_NT)
 	$(CC) -L$(WXDIR)\lib\gcc_lib -o Entangle.exe EntangleApp.o EntangleMain.o  resource.res -s -static-libgcc -static-libstdc++ -mthreads $(LIBS) $(CRYPTDIR)libcryptopp.a -mwindows
 else
 # LINUX BUILD
-	$(CC) -o Entangle EntangleApp.o EntangleMain.o  -s -L/usr/lib/x86_64-linux-gnu -pthread -lwx_gtk2u_core-3.0 -lwx_baseu-3.0  -lwx_gtk2u_adv-3.0 -lcryptopp
+	$(CC) -o Entangle EntangleApp.o EntangleMain.o  -s -lwx_gtk2u_core-3.0 -lwx_baseu-3.0  -lwx_gtk2u_adv-3.0 -lcryptopp
 endif
 i18n:
 	msgfmt -o ./ru/Entangle.mo ./ru/Entangle.po
