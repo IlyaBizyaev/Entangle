@@ -1,5 +1,5 @@
 # Entangle
-![Entangle Logo](http://entangle.ucoz.net/logo.png)
+![Entangle Logo](http://entangle.ucoz.net/text_logo.png)
 
 ![Windows](http://entangle.ucoz.net/Windows_screenshot.png)
 ## Description
