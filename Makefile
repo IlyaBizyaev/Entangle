@@ -28,10 +28,10 @@ endif
 i18n:
 	msgfmt -o ./ru/Entangle.mo ./ru/Entangle.po
 	msgfmt -o ./de/Entangle.mo ./de/Entangle.po
-	msgfmt -o ./ua/Entangle.mo ./ua/Entangle.po
+	msgfmt -o ./uk/Entangle.mo ./uk/Entangle.po
 install:
 	install Entangle /usr/local/bin
 uninstall:
 	rm -rf /usr/local/bin/Entangle
 clean:
-	rm -rf *.o Entangle Entangle.exe ./ru/Entangle.mo ./de/Entangle.mo ./ua/Entangle.mo resource.res
+	rm -rf *.o Entangle Entangle.exe ./ru/Entangle.mo ./de/Entangle.mo ./uk/Entangle.mo resource.res
