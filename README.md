@@ -40,7 +40,7 @@ Please notify me if you want to use this code in any projects.
 
 ...**doublemax** for the progress bar.
 
-...**Jean-Pierre Münch**, **Jeffrey Walton** ans **Mobile Mouse** for help with the encryption.
+...**Jean-Pierre Münch**, **Jeffrey Walton** and **Mobile Mouse** for help with the encryption.
 
 ...**RostakaGmfun** for a better Linux makefile.
 ## Copyright
