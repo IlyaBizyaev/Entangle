@@ -101,7 +101,7 @@ msgstr "Не могу открыть результир. файл"
 
 #: EntangleMain.cpp:367
 msgid "Decrypting "
-msgstr "Шифрую "
+msgstr "Дешифрую "
 
 #: EntangleMain.cpp:413
 msgid "Invalid password or mode"
