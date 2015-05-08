@@ -29,10 +29,11 @@ class EntangleDialog: public wxDialog
         EntangleDialog(wxWindow* parent,wxWindowID id = -1);
         virtual ~EntangleDialog();
         friend class DroppedFilesReciever;
+        void Process(wxString name, wxString password);
         void UpdateProgress();
-        void OnFileReselect(wxTreeEvent& event);
         void UpdateTasks();
         void SetText(int line, wxString message);
+        void OnFileReselect(wxTreeEvent& event);
 
     private:
 
@@ -40,7 +41,6 @@ class EntangleDialog: public wxDialog
         void OnQuit(wxCommandEvent& event);
         void OnAbout(wxCommandEvent& event);
         void OnButton1Click(wxCommandEvent& event);
-        void Process(wxString name, byte key[]);
         void OnLockClick(wxCommandEvent& event);
         void OnPasswordChange(wxCommandEvent& event);
         //*)

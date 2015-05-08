@@ -15,6 +15,7 @@
 #include<cstdlib>//For simple RNG
 #include<ctime>//For time()
 #include<wx/aboutdlg.h>
+#include<wx/msgdlg.h>
 
 #ifdef __WIN32__
 #include<aes.h> //AES cryptography
@@ -23,6 +24,8 @@
 #include<filters.h>
 #include<gcm.h>
 #include<cryptlib.h>
+#include<pwdbased.h>
+#include<sha.h>
 #else
 #include<cryptopp/aes.h> //AES cryptography
 #include<cryptopp/osrng.h>//Random IV
@@ -30,6 +33,8 @@
 #include<cryptopp/gcm.h>
 #include<cryptopp/modes.h>
 #include<cryptopp/cryptlib.h>
+#include<cryptopp/pwdbased.h>
+#include<cryptopp/sha.h>
 #endif // __WIN32__
 
 #define BUF_SIZE 16384
@@ -43,6 +48,7 @@ unsigned long long GetFileSize(wxString path); //Works on Unix
 void AddError(wxString, wxString);
 bool SmartRemove(wxString path, bool overwrite = false);
 void RandTempName(wxString & temp_name);
+void DeriveKey(byte * key, wxString & password, byte * iv);
 wxString NumToString(int number);
 void GoodFinish(fstream&, fstream&, wxString&, wxString&);
 
@@ -227,7 +233,7 @@ void EntangleDialog::OnAbout(wxCommandEvent& WXUNUSED(event))
     wxTheApp->SafeYield(NULL, false);
 }
 
-void EntangleDialog::OnButton1Click(wxCommandEvent& event)
+void EntangleDialog::OnButton1Click(wxCommandEvent& WXUNUSED(event))
 {
     NumFiles=0; NumBytes=0; Total=0; //Clear All
     //Check if tasks are selected and the password is typed in
@@ -242,11 +248,7 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& event)
         return;
     }
     //Get the password
-    wxString wxpassword = TextCtrl1->GetLineText(0);
-    //Assign password to the key
-    byte key[16];
-    const char * charKey = wxpassword.c_str().AsChar();
-    memcpy(key, (byte*)charKey, 16);
+    wxString password = TextCtrl1->GetLineText(0);
     //Adding the Drag & Drop array
     tasks.insert(tasks.end(), drop_files.begin(), drop_files.end());
     drop_files.Clear();
@@ -288,7 +290,7 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& event)
     for(size_t i=0; i<tasks.GetCount(); ++i)
     {
         if(tasks[i]!="SKIP")
-            Process(tasks[i], key);
+            Process(tasks[i], password);
     }
     ProgressDialog1->Update(100, _("Done!"));
 
@@ -303,7 +305,7 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& event)
         SetText(2, _("Complete (")+NumToString(NumFiles)+_(" file(s))"));
 }
 
-void EntangleDialog::Process(wxString name, byte key[])
+void EntangleDialog::Process(wxString name, wxString password)
 {
     wxASSERT(Total!=0);
     /** Checking the object type **/
@@ -314,7 +316,7 @@ void EntangleDialog::Process(wxString name, byte key[])
         wxString searcher = wxFindFirstFile(name+"/*");
         while (!searcher.empty()) //While there are files
         {
-            Process(searcher, key);
+            Process(searcher, password);
             searcher = wxFindNextFile();
         }
     }
@@ -365,6 +367,7 @@ void EntangleDialog::Process(wxString name, byte key[])
             byte iv[16]; byte * Retrieved; Header DecryptedHeader;
             //Reading the IV
             In.read((char*)&iv, 16);
+            byte key[16]; DeriveKey(key, password, iv);
             try
             {
                 //New AES Decryption object
@@ -454,6 +457,8 @@ void EntangleDialog::Process(wxString name, byte key[])
             //Creating, generating and writing the IV
             byte iv[16]; rnd.GenerateBlock(iv, sizeof(iv));
             Out.write(reinterpret_cast<const char*>(&iv), 16);
+
+            byte key[16]; DeriveKey(key, password, iv);
 
             /** Preparing the Entangle Header **/
             //Creating and cleaning
@@ -670,12 +675,26 @@ void RandTempName(wxString & temp_name)
     return;
 }
 
-void EntangleDialog::OnFileReselect(wxTreeEvent& event)
+void DeriveKey(byte * key, wxString & password, byte * iv)
+{
+    /** Deriving a key from password **/
+    //Convert password to UTF-8
+    wxCharBuffer cbuff = password.mb_str(wxMBConvUTF8());
+    //Copy UTF-8 data to a byte array
+    byte * bpass = new byte[cbuff.length()];
+    memcpy((void*)bpass, (void*)cbuff.data(), cbuff.length());
+    //Derive the key
+    PKCS5_PBKDF2_HMAC<SHA1> KeyDeriver;
+    //byte * derived, size_t derivedLen, byte purpose, byte * password, size_t pwdLen, byte * salt, size_t saltLen, uint iterations
+    KeyDeriver.DeriveKey(key, 16, (byte)0, bpass, cbuff.length(), iv, 16, 1);
+}
+
+void EntangleDialog::OnFileReselect(wxTreeEvent& WXUNUSED(event))
 {
     this->UpdateTasks();
 }
 
-void EntangleDialog::OnLockClick(wxCommandEvent& event)
+void EntangleDialog::OnLockClick(wxCommandEvent& WXUNUSED(event))
 {
     if(ShouldDecrypt==false)
     {
@@ -689,7 +708,7 @@ void EntangleDialog::OnLockClick(wxCommandEvent& event)
     }
 }
 
-void EntangleDialog::OnPasswordChange(wxCommandEvent& event)
+void EntangleDialog::OnPasswordChange(wxCommandEvent& WXUNUSED(event))
 {
     wxString wxpassword = TextCtrl1->GetLineText(0);
     int length = wxpassword.length();
