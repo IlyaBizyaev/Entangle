@@ -7,7 +7,7 @@ msgstr ""
 "Project-Id-Version: Entangle 1.0\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2015-02-10 10:59+0300\n"
-"PO-Revision-Date: 2015-02-12 10:49+0300\n"
+"PO-Revision-Date: 2015-05-09 13:06+0300\n"
 "Last-Translator: Ilya Bizyaev <bizyaev@lyceum62.ru>\n"
 "Language-Team: Russian <bizyaev@lyceum62.ru>\n"
 "Language: ru\n"
@@ -124,8 +124,8 @@ msgid "Cannot rename the result"
 msgstr "Не могу переимен-ть результат"
 
 #: EntangleMain.cpp:702
-msgid "Good!"
-msgstr "Отлично!"
+msgid "Good"
+msgstr "Отлично"
 
 #: EntangleMain.cpp:710
 msgid "Too short"
