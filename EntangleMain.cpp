@@ -9,7 +9,7 @@
 #include "EntangleMain.h"
 #include "EntangleApp.h"
 #include<fstream>  //Read/write operations
-#include<memory> //Needed for mode check (ONCE!)
+#include<memory> //Memory copying
 #include<wx/dnd.h> //File drag & drop!
 #include<wx/filename.h>//Useful class
 #include<cstdlib>//For simple RNG
@@ -44,18 +44,21 @@ using namespace std;
 using namespace CryptoPP;
 
 /** Functions **/
-unsigned long long GetFileSize(wxString path); //Works on Unix
-void AddError(wxString, wxString);
-bool SmartRemove(wxString path, bool overwrite = false);
+//File functions
+unsigned long long GetFileSize(wxString & path);
+bool SmartRemove(wxString & path, bool overwrite = false);
 void RandTempName(wxString & temp_name);
+//Helper functions
 void DeriveKey(byte * key, wxString & password, byte * iv);
 wxString ToString(int number);
+//For emergencies
+void AddError(wxString, wxString);
 void GoodFinish(fstream&, fstream&, wxString&, wxString&);
 
 /** Global variables **/
 int NumFiles=0, ShowProgress=0;
 unsigned long long Total=0, NumBytes=0;
-bool TasksSelected = false, PasswordTypedIn = false, ShouldDecrypt = false, WentWrong = false;
+bool TasksSelected = false, CorrectPassword = false, ShouldDecrypt = false, WentWrong = false;
 
 /** Global objects **/
 wxArrayString tasks, drop_files;
@@ -78,7 +81,7 @@ class EntangleSink : public Bufferless<Sink> /* Array-based sink class for GCM *
 {
 public:
     //Constructor (accepts pointer to an array and to size_t variable)
-    EntangleSink(byte ** g_output, size_t * g_size) : output(g_output), out_size(g_size)
+    EntangleSink(byte ** g_output, size_t & g_size) : output(g_output), out_size(g_size)
     {   Clean();  }
 
     //Destructor
@@ -88,15 +91,14 @@ public:
     // Function which accepts data from AES/GCM and puts to the linked array
     size_t Put2(const byte *inString, size_t length, int, bool)
     {
-        if(!inString || !length)
-			return length;
+        if(!inString || !length) return length;
         //Reallocating the array
-        *output = (byte*) realloc(*output, *out_size+length);
+        *output = (byte*)realloc(*output, out_size+length);
         //Adding new data
-        byte * WhereToJoin = *output + *out_size;
+        byte * WhereToJoin = *output + out_size;
         memcpy(WhereToJoin, inString, length);
         //Updating the size
-        *out_size+=length;
+        out_size+=length;
         return 0;
     }
 
@@ -108,11 +110,11 @@ public:
             free(*output);
             *output = NULL;
         }
-        *out_size=0;
+        out_size=0;
     }
 private:
     byte ** output;     //Pointer to an array
-    size_t * out_size;  //Stores number of bytes in array
+    size_t & out_size;  //Stores number of bytes in array
 };
 
 
@@ -157,6 +159,7 @@ private:
 };
 
 
+/* Window constructor and destructor */
 //wxDIRCTRL_MULTIPLE
 EntangleDialog::EntangleDialog(wxWindow* parent,wxWindowID id)
 {
@@ -218,92 +221,8 @@ EntangleDialog::~EntangleDialog()
     //*)
 }
 
-
-void EntangleDialog::OnAbout(wxCommandEvent& WXUNUSED(event))
-{
-    wxAboutDialogInfo aboutInfo;
-    aboutInfo.SetName("Entangle");
-    aboutInfo.SetVersion("0.8");
-    aboutInfo.SetDescription(_("Simple and user-friendly application\nfor AES-based data encryption"));
-    aboutInfo.SetCopyright("(C) Ilya Bizyaev <bizyaev@lyceum62.ru>, 2015");
-    aboutInfo.SetWebSite("http://entangle.ucoz.net");
-    wxAboutBox(aboutInfo, this);
-    wxTheApp->SafeYield(NULL, false);
-}
-
-void EntangleDialog::OnButton1Click(wxCommandEvent& WXUNUSED(event))
-{
-    NumFiles=0; NumBytes=0; Total=0; //Clear All
-    //Check if tasks are selected and the password is typed in
-    if(!TasksSelected)
-    {
-        SetText(1, _("No tasks selected!"));
-        return;
-    }
-    if(!PasswordTypedIn)
-    {
-        SetText(2, _("Enter password first!"));
-        return;
-    }
-    //Get the password
-    wxString password = TextCtrl1->GetLineText(0);
-    //Adding the Drag & Drop array
-    tasks.insert(tasks.end(), drop_files.begin(), drop_files.end());
-    drop_files.Clear();
-    //If there are no tasks
-    /* ESTIMATING REQUIRED WORK */
-    unsigned long long fsize;
-    for(size_t i=0; i<tasks.GetCount(); ++i)
-    {
-        if(!wxFileName::Exists(tasks[i]))
-        {
-            tasks[i]="SKIP";
-            AddError(tasks[i], _("Does not exist"));
-            continue;
-        }
-        fsize = GetFileSize(tasks[i]);
-        //Processing exceptions
-        if(fsize==0) //Empty file
-        {
-            tasks[i]="SKIP";
-            ++NumFiles;
-            continue;
-        }
-        if(fsize==ULL_MAX) //If GetFileSize() went wrong
-        {
-            tasks[i]="SKIP";
-            AddError(tasks[i], _("Cannot access"));
-            continue;
-        }
-        Total+=fsize;
-    }
-
-    SetText(2, _("Processing...")); wxYield();
-    ProgressDialog1 = new wxProgressDialog(_("Progress"), _("Starting..."), 100, this);
-    ProgressDialog1->CenterOnParent();
-    ProgressDialog1->Show();
-    ProgressDialog1->Update(0, show_str);
-
-    /* PROCESSING THE TASKS */
-    for(size_t i=0; i<tasks.GetCount(); ++i)
-    {
-        if(tasks[i]!="SKIP")
-            Process(tasks[i], password);
-    }
-    ProgressDialog1->Update(100, _("Done!"));
-
-    if(WentWrong)
-    {
-        SetText(2, _("Went wrong :("));
-        wxLogError(_("Something went wrong:"));
-        wxLog::FlushActive();
-        WentWrong = false;
-    }
-    else
-        SetText(2, _("Complete (")+ToString(NumFiles)+_(" file(s))"));
-}
-
-void EntangleDialog::Process(wxString name, wxString password)
+/* Main function */
+void EntangleDialog::Process(wxString & name, wxString & password)
 {
     wxASSERT(Total!=0);
     /** Checking the object type **/
@@ -482,7 +401,7 @@ void EntangleDialog::Process(wxString name, wxString password)
                 size_t GotSize = 0;
                 //Filter with an EntangleSink
                 AuthenticatedEncryptionFilter ef(e,
-                new EntangleSink(&Received, &GotSize), false, TAG_SIZE);
+                new EntangleSink(&Received, GotSize), false, TAG_SIZE);
                 //Encrypting MakeHeader
                 ef.ChannelPut("", (const byte*)&MakeHeader, sizeof(MakeHeader));
                 ef.ChannelMessageEnd("");
@@ -552,8 +471,131 @@ void EntangleDialog::Process(wxString name, wxString password)
     return;
 }
 
+/* Event processors */
+void EntangleDialog::OnButton1Click(wxCommandEvent& WXUNUSED(event))
+{
+    NumFiles=0; NumBytes=0; Total=0; //Clear All
+    //Check if tasks are selected and the password is typed in
+    if(!TasksSelected)
+    {
+        SetText(1, _("No tasks selected!"));
+        return;
+    }
+    if(!CorrectPassword)
+    {
+        SetText(2, _("Enter password first!"));
+        return;
+    }
+    //Get the password
+    wxString password = TextCtrl1->GetLineText(0);
+    //Adding the Drag & Drop array
+    tasks.insert(tasks.end(), drop_files.begin(), drop_files.end());
+    drop_files.Clear();
+    //If there are no tasks
+    /* ESTIMATING REQUIRED WORK */
+    unsigned long long fsize;
+    for(size_t i=0; i<tasks.GetCount(); ++i)
+    {
+        if(!wxFileName::Exists(tasks[i]))
+        {
+            tasks[i]="SKIP";
+            AddError(tasks[i], _("Does not exist"));
+            continue;
+        }
+        fsize = GetFileSize(tasks[i]);
+        //Processing exceptions
+        if(fsize==0) //Empty file
+        {
+            tasks[i]="SKIP";
+            ++NumFiles;
+            continue;
+        }
+        if(fsize==ULL_MAX) //If GetFileSize() went wrong
+        {
+            tasks[i]="SKIP";
+            AddError(tasks[i], _("Cannot access"));
+            continue;
+        }
+        Total+=fsize;
+    }
 
-unsigned long long GetFileSize(wxString path)
+    SetText(2, _("Processing...")); wxYield();
+    ProgressDialog1 = new wxProgressDialog(_("Progress"), _("Starting..."), 100, this);
+    ProgressDialog1->CenterOnParent();
+    ProgressDialog1->Show();
+    ProgressDialog1->Update(0, show_str);
+
+    /* PROCESSING THE TASKS */
+    for(size_t i=0; i<tasks.GetCount(); ++i)
+    {
+        if(tasks[i]!="SKIP")
+            Process(tasks[i], password);
+    }
+    ProgressDialog1->Update(100, _("Done!"));
+
+    if(WentWrong)
+    {
+        SetText(2, _("Went wrong :("));
+        wxLogError(_("Something went wrong:"));
+        wxLog::FlushActive();
+        WentWrong = false;
+    }
+    else
+        SetText(2, _("Complete (")+ToString(NumFiles)+_(" file(s))"));
+}
+
+void EntangleDialog::OnFileReselect(wxTreeEvent& WXUNUSED(event))
+{
+    this->UpdateTasks();
+}
+
+void EntangleDialog::OnLockClick(wxCommandEvent& WXUNUSED(event))
+{
+    /* Reverses current mode */
+    if(ShouldDecrypt)
+        BitmapButton1->SetBitmap(wxImage("./Encryption.png"));
+    else
+        BitmapButton1->SetBitmap(wxImage("./Decryption.png"));
+    ShouldDecrypt = !ShouldDecrypt;
+}
+
+void EntangleDialog::OnPasswordChange(wxCommandEvent& WXUNUSED(event))
+{
+    wxString wxpassword = TextCtrl1->GetLineText(0);
+    int length = wxpassword.length();
+    if(length >= 16)
+    {
+        if(length == 16)
+            SetText(2, _("Good")+" (16/16)");
+        else
+            SetText(2, _("Good")+" (>16)");
+        CorrectPassword = true;
+    }
+    else
+    {
+        if(length == 0)
+            SetText(2, _("Enter the password:"));
+        else
+            SetText(2, _("Too short")+" ("+ToString(length)+"/16)");
+        CorrectPassword = false;
+    }
+    wxYield();
+}
+
+void EntangleDialog::OnAbout(wxCommandEvent& WXUNUSED(event))
+{
+    wxAboutDialogInfo aboutInfo;
+    aboutInfo.SetName("Entangle");
+    aboutInfo.SetVersion("0.8");
+    aboutInfo.SetDescription(_("Simple and user-friendly application\nfor AES-based data encryption"));
+    aboutInfo.SetCopyright("(C) Ilya Bizyaev <bizyaev@lyceum62.ru>, 2015");
+    aboutInfo.SetWebSite("http://entangle.ucoz.net");
+    wxAboutBox(aboutInfo, this);
+    wxTheApp->SafeYield(NULL, false);
+}
+
+/* File functions */
+unsigned long long GetFileSize(wxString & path)
 {
     //Check if it does not exist at all
     if(!wxFileName::Exists(path)) return -1;
@@ -584,24 +626,7 @@ unsigned long long GetFileSize(wxString path)
     return result.GetValue();
 }
 
-
-void EntangleDialog::UpdateProgress()
-{
-    //Re-calculates current progress
-    //and updates the ProgressDialog()
-    wxASSERT(Total!=0);
-    wxASSERT(NumBytes!=0);
-    ShowProgress = (int)((double)NumBytes/Total*100);
-    if(ShowProgress>100) ShowProgress=100;
-    ProgressDialog1->Update(ShowProgress, show_str);
-}
-
-wxString ToString(int number)
-{
-    return wxString::FromDouble(number);
-}
-
-bool SmartRemove(wxString path, bool overwrite)
+bool SmartRemove(wxString & path, bool overwrite)
 {
     //If there is already no such file, terminate.
     if(!wxFileExists(path)) return true;
@@ -673,59 +698,7 @@ void RandTempName(wxString & temp_name)
     return;
 }
 
-void DeriveKey(byte * key, wxString & password, byte * iv)
-{
-    /** Deriving a key from password **/
-    //Convert password to UTF-8
-    wxCharBuffer cbuff = password.mb_str(wxMBConvUTF8());
-    //Copy UTF-8 data to a byte array
-    byte * bpass = new byte[cbuff.length()];
-    memcpy((void*)bpass, (void*)cbuff.data(), cbuff.length());
-    //Derive the key
-    PKCS5_PBKDF2_HMAC<SHA512> KeyDeriver;
-    //byte * derived, size_t derivedLen, byte purpose, byte * password, size_t pwdLen, byte * salt, size_t saltLen, uint iterations
-    KeyDeriver.DeriveKey(key, 16, (byte)0, bpass, cbuff.length(), iv, 16, 1);
-}
-
-void EntangleDialog::OnFileReselect(wxTreeEvent& WXUNUSED(event))
-{
-    this->UpdateTasks();
-}
-
-void EntangleDialog::OnLockClick(wxCommandEvent& WXUNUSED(event))
-{
-    /* Reverses current mode */
-    if(ShouldDecrypt)
-        BitmapButton1->SetBitmap(wxImage("./Encryption.png"));
-    else
-        BitmapButton1->SetBitmap(wxImage("./Decryption.png"));
-    ShouldDecrypt = !ShouldDecrypt;
-}
-
-void EntangleDialog::OnPasswordChange(wxCommandEvent& WXUNUSED(event))
-{
-    wxString wxpassword = TextCtrl1->GetLineText(0);
-    int length = wxpassword.length();
-    if(length >= 16)
-    {
-        if(length == 16)
-            SetText(2, _("Good")+" (16/16)");
-        else
-            SetText(2, _("Good")+" (>16)");
-        PasswordTypedIn = true;
-    }
-    else
-    {
-        if(length == 0)
-            SetText(2, _("Enter the password:"));
-        else
-            SetText(2, _("Too short")+" ("+ToString(length)+"/16)");
-        PasswordTypedIn = false;
-    }
-    wxYield();
-}
-
-
+/* UI-based functions */
 void EntangleDialog::UpdateTasks() //TODO: Simplify!
 {
     GenericDirCtrl1->GetPaths(tasks);
@@ -751,6 +724,16 @@ void EntangleDialog::UpdateTasks() //TODO: Simplify!
     }
 }
 
+void EntangleDialog::UpdateProgress()
+{
+    //Re-calculates current progress
+    //and updates the ProgressDialog()
+    wxASSERT(Total!=0);
+    wxASSERT(NumBytes!=0);
+    ShowProgress = (int)((double)NumBytes/Total*100);
+    if(ShowProgress>100) ShowProgress=100;
+    ProgressDialog1->Update(ShowProgress, show_str);
+}
 
 void EntangleDialog::SetText(int line, wxString message)
 {
@@ -760,6 +743,27 @@ void EntangleDialog::SetText(int line, wxString message)
         StaticText2->SetLabelText(message);
 }
 
+/* Helper functions */
+void DeriveKey(byte * key, wxString & password, byte * iv)
+{
+    /** Deriving a key from password **/
+    //Convert password to UTF-8
+    wxCharBuffer cbuff = password.mb_str(wxMBConvUTF8());
+    //Copy UTF-8 data to a byte array
+    byte * bpass = new byte[cbuff.length()];
+    memcpy((void*)bpass, (void*)cbuff.data(), cbuff.length());
+    //Derive the key
+    PKCS5_PBKDF2_HMAC<SHA512> KeyDeriver;
+    //byte * derived, size_t derivedLen, byte purpose, byte * password, size_t pwdLen, byte * salt, size_t saltLen, uint iterations
+    KeyDeriver.DeriveKey(key, 16, (byte)0, bpass, cbuff.length(), iv, 16, 1);
+}
+
+wxString ToString(int number)
+{
+    return wxString::FromDouble(number);
+}
+
+/* For emergencies */
 void AddError(wxString fname, wxString code)
 {
     //Producing a human-readable output
