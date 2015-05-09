@@ -49,7 +49,7 @@ void AddError(wxString, wxString);
 bool SmartRemove(wxString path, bool overwrite = false);
 void RandTempName(wxString & temp_name);
 void DeriveKey(byte * key, wxString & password, byte * iv);
-wxString NumToString(int number);
+wxString ToString(int number);
 void GoodFinish(fstream&, fstream&, wxString&, wxString&);
 
 /** Global variables **/
@@ -204,8 +204,6 @@ EntangleDialog::EntangleDialog(wxWindow* parent,wxWindowID id)
     SetDropTarget(new DroppedFilesReciever(this));
     //Randomize the RNG
     srand(time(0));
-    //Denying to enter more than 16 characters
-    TextCtrl1->SetMaxLength(16);
     //Collapse the file choosing tree
     GenericDirCtrl1->CollapseTree();
     //Remove any default selections
@@ -302,7 +300,7 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& WXUNUSED(event))
         WentWrong = false;
     }
     else
-        SetText(2, _("Complete (")+NumToString(NumFiles)+_(" file(s))"));
+        SetText(2, _("Complete (")+ToString(NumFiles)+_(" file(s))"));
 }
 
 void EntangleDialog::Process(wxString name, wxString password)
@@ -598,7 +596,7 @@ void EntangleDialog::UpdateProgress()
     ProgressDialog1->Update(ShowProgress, show_str);
 }
 
-wxString NumToString(int number)
+wxString ToString(int number)
 {
     return wxString::FromDouble(number);
 }
@@ -684,7 +682,7 @@ void DeriveKey(byte * key, wxString & password, byte * iv)
     byte * bpass = new byte[cbuff.length()];
     memcpy((void*)bpass, (void*)cbuff.data(), cbuff.length());
     //Derive the key
-    PKCS5_PBKDF2_HMAC<SHA1> KeyDeriver;
+    PKCS5_PBKDF2_HMAC<SHA512> KeyDeriver;
     //byte * derived, size_t derivedLen, byte purpose, byte * password, size_t pwdLen, byte * salt, size_t saltLen, uint iterations
     KeyDeriver.DeriveKey(key, 16, (byte)0, bpass, cbuff.length(), iv, 16, 1);
 }
@@ -696,58 +694,55 @@ void EntangleDialog::OnFileReselect(wxTreeEvent& WXUNUSED(event))
 
 void EntangleDialog::OnLockClick(wxCommandEvent& WXUNUSED(event))
 {
-    if(ShouldDecrypt==false)
-    {
-        ShouldDecrypt=true;
-        BitmapButton1->SetBitmap(wxImage("./Decryption.png"));
-    }
-    else
-    {
-        ShouldDecrypt=false;
+    /* Reverses current mode */
+    if(ShouldDecrypt)
         BitmapButton1->SetBitmap(wxImage("./Encryption.png"));
-    }
+    else
+        BitmapButton1->SetBitmap(wxImage("./Decryption.png"));
+    ShouldDecrypt = !ShouldDecrypt;
 }
 
 void EntangleDialog::OnPasswordChange(wxCommandEvent& WXUNUSED(event))
 {
     wxString wxpassword = TextCtrl1->GetLineText(0);
     int length = wxpassword.length();
-    if(length == 16)
+    if(length >= 16)
     {
-       SetText(2, _("Good!"));
-       PasswordTypedIn = true;
+        if(length == 16)
+            SetText(2, _("Good")+" (16/16)");
+        else
+            SetText(2, _("Good")+" (>16)");
+        PasswordTypedIn = true;
     }
     else
     {
         if(length == 0)
             SetText(2, _("Enter the password:"));
         else
-            SetText(2, _("Too short")+" ("+NumToString(length)+"/16)");
-            PasswordTypedIn = false;
+            SetText(2, _("Too short")+" ("+ToString(length)+"/16)");
+        PasswordTypedIn = false;
     }
     wxYield();
 }
 
 
-void EntangleDialog::UpdateTasks()
+void EntangleDialog::UpdateTasks() //TODO: Simplify!
 {
     GenericDirCtrl1->GetPaths(tasks);
-    int usual = tasks.size(), dropped = drop_files.size();
-    wxString str_usual, str_dropped;
-    str_usual = NumToString(usual);
-    str_dropped = NumToString(dropped);
+    wxString chosen = ToString(tasks.size());
+    wxString dropped = ToString(drop_files.size());
     TasksSelected = true;
-    if(usual!=0) //There are files chosen in usual way
+    if(!tasks.empty()) //There are files chosen in usual way
     {
-        if(dropped!=0) //...and there are dropped ones
-            SetText(1, _("Selected ")+str_usual+_(", received ")+str_dropped);
+        if(!drop_files.empty()) //...and there are dropped ones
+            SetText(1, _("Selected ")+chosen+_(", received ")+dropped);
         else //...and no dropped ones
-            SetText(1, _("Selected ")+str_usual+_(" object(s)"));
+            SetText(1, _("Selected ")+chosen+_(" object(s)"));
     }
     else //No files chosen in usual way
     {
-        if(dropped!=0)  //...but there are dropped ones
-            SetText(1, _("Received ")+str_dropped+_(" object(s)"));
+        if(!drop_files.empty())  //...but there are dropped ones
+            SetText(1, _("Received ")+dropped+_(" object(s)"));
         else  //...and no dropped ones
         {
             SetText(1, _("Choose files or folders:"));
@@ -759,17 +754,10 @@ void EntangleDialog::UpdateTasks()
 
 void EntangleDialog::SetText(int line, wxString message)
 {
-    switch(line)
-    {
-    case 1:
+    if(line==1)
         StaticText1->SetLabelText(message);
-        break;
-    case 2:
+    else if(line==2)
         StaticText2->SetLabelText(message);
-        break;
-    default:
-        break;
-    }
 }
 
 void AddError(wxString fname, wxString code)
