@@ -31,7 +31,7 @@ void GoodFinish(fstream&, fstream&, wxString&, wxString&);
 /** Global variables **/
 int NumFiles=0, ShowProgress=0;
 unsigned long long Total=0, NumBytes=0;
-bool TasksSelected = false, CorrectPassword = false, ShouldDecrypt = false, WentWrong = false;
+bool TasksSelected = false, PasswordTypedIn = false, ShouldDecrypt = false, WentWrong = false;
 
 /** Global objects **/
 wxArrayString tasks, drop_files;
@@ -454,7 +454,7 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& WXUNUSED(event))
         SetText(1, _("No tasks selected!"));
         return;
     }
-    if(!CorrectPassword)
+    if(!PasswordTypedIn)
     {
         SetText(2, _("Enter password first!"));
         return;
@@ -536,22 +536,20 @@ void EntangleDialog::OnPasswordChange(wxCommandEvent& WXUNUSED(event))
 {
     wxString wxpassword = TextCtrl1->GetLineText(0);
     int length = wxpassword.length();
-    if(length >= 16)
+    PasswordTypedIn = true;
+    if(length == 0)
     {
-        if(length == 16)
-            SetText(2, _("Good")+" (16/16)");
-        else
-            SetText(2, _("Good")+" (>16)");
-        CorrectPassword = true;
+        SetText(2, _("Enter the password:"));
+        PasswordTypedIn = false;
     }
-    else
-    {
-        if(length == 0)
-            SetText(2, _("Enter the password:"));
-        else
-            SetText(2, _("Too short")+" ("+ToString(length)+"/16)");
-        CorrectPassword = false;
-    }
+    else if(length > 16)
+         SetText(2, _("Good")+" (>16)");
+    else if(length == 16)
+        SetText(2, _("Good")+" (16/16)");
+    else if(length > 10)
+		SetText(2, _("Medium")+" ("+ToString(length)+"/16)");
+	else
+	    SetText(2, _("Short")+" ("+ToString(length)+"/16)");
     wxYield();
 }
 
