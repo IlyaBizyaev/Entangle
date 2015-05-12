@@ -29,7 +29,7 @@ bool EntangleApp::OnInit()
             m_lang=wxLANGUAGE_RUSSIAN;
         if (!m_locale.Init(m_lang, wxLOCALE_DONT_LOAD_DEFAULT))
             wxMessageBox("This language is not supported!");
-        wxLocale::AddCatalogLookupPathPrefix(".");
+        wxLocale::AddCatalogLookupPathPrefix("./lang");
         if (!m_locale.AddCatalog("Entangle"))
             wxMessageBox("Couldn't find translation for "+m_locale.GetLanguageName(m_lang));
         #ifdef __LINUX__

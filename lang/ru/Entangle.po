@@ -1,24 +1,23 @@
 # Entangle 1.0
-# Copyright (C) 2015 Ilya Bizyaev, Rostyslav Kurylo
+# Copyright (C) 2015 Ilya Bizyaev
 # This file is distributed under the same license as the Entangle package.
 # Ilya Bizyaev <bizyaev@lyceum62.ru>, 2015.
-# Rostyslav Kurylo <rostawesomegd@gmail.com>
 msgid ""
 msgstr ""
 "Project-Id-Version: Entangle 1.0\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2015-02-10 10:59+0300\n"
-"PO-Revision-Date: 2015-05-09 13:03+0300\n"
-"Last-Translator: Rostyslav Kurylo <rostawesomegd@gmail.com>\n"
-"Language-Team: Ukrainian <rostawesomegd@gmail.com>\n"
-"Language: uk\n"
+"PO-Revision-Date: 2015-05-09 13:06+0300\n"
+"Last-Translator: Ilya Bizyaev <bizyaev@lyceum62.ru>\n"
+"Language-Team: Russian <bizyaev@lyceum62.ru>\n"
+"Language: ru\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
 #: EntangleMain.cpp:59 EntangleMain.cpp:286
 msgid "Starting..."
-msgstr "Починаю..."
+msgstr "Начинаю..."
 
 #: EntangleMain.cpp:164
 msgid "Entangle"
@@ -26,11 +25,11 @@ msgstr "Entangle"
 
 #: EntangleMain.cpp:167 EntangleMain.cpp:738
 msgid "Choose files or folders:"
-msgstr "Оберіть файли або теки:"
+msgstr "Выберите файлы или папки:"
 
 #: EntangleMain.cpp:172 EntangleMain.cpp:708
 msgid "Enter the password:"
-msgstr "Введіть пароль:"
+msgstr "Введите пароль:"
 
 #: EntangleMain.cpp:174
 msgid "Mode"
@@ -42,31 +41,31 @@ msgstr "Автор"
 
 #: EntangleMain.cpp:184
 msgid "Start"
-msgstr "Почати"
+msgstr "Начать"
 
 #: EntangleMain.cpp:227
 msgid "Simple and user-friendly application\nfor AES-based data encryption"
-msgstr "Простий і зручний додаток\nдля AES-шифрування даних"
+msgstr "Простое и удобное приложение\nдля AES-шифрования данных"
 
 #: EntangleMain.cpp:240
 msgid "No tasks selected!"
-msgstr "Завдання не вибрані!"
+msgstr "Задания не выбраны!"
 
 #: EntangleMain.cpp:245
 msgid "Enter password first!"
-msgstr "Спочатку введіть пароль!"
+msgstr "Сначала введите пароль!"
 
 #: EntangleMain.cpp:265
 msgid "Does not exist"
-msgstr "Не існує"
+msgstr "Не существует"
 
 #: EntangleMain.cpp:279 EntangleMain.cpp:339
 msgid "Cannot access"
-msgstr "Немає дозволу"
+msgstr "Нет доступа"
 
 #: EntangleMain.cpp:285
 msgid "Processing..."
-msgstr "Обробка..."
+msgstr "Обработка..."
 
 #: EntangleMain.cpp:286
 msgid "Progress"
@@ -78,11 +77,11 @@ msgstr "Готово!"
 
 #: EntangleMain.cpp:301
 msgid "Went wrong :("
-msgstr "Не вдалось :("
+msgstr "Не удалось :("
 
 #: EntangleMain.cpp:302
 msgid "Something went wrong:"
-msgstr "Щось трапилось не так:"
+msgstr "Что-то пошло не так:"
 
 #: EntangleMain.cpp:307
 msgid "Complete ("
@@ -90,31 +89,31 @@ msgstr "Готово ("
 
 #: EntangleMain.cpp:307
 msgid " file(s))"
-msgstr " файл(ів)"
+msgstr " файл(ов)"
 
 #: EntangleMain.cpp:350
 msgid "Cannot open the input file"
-msgstr "Не можу відкрити вхідний файл"
+msgstr "Не могу открыть входной файл"
 
 #: EntangleMain.cpp:359
 msgid "Cannot create an output file"
-msgstr "Не можу відкрити вихідний файл"
+msgstr "Не могу открыть результир. файл"
 
 #: EntangleMain.cpp:367
 msgid "Decrypting "
-msgstr "Розшифровую "
+msgstr "Дешифрую "
 
 #: EntangleMain.cpp:413
 msgid "Invalid password or mode"
-msgstr "Невірний пароль або режим"
+msgstr "Неверный пароль или режим"
 
 #: EntangleMain.cpp:423
 msgid "Requires newer program version"
-msgstr "Потребує новішої версії"
+msgstr "Требует более новой версии"
 
 #: EntangleMain.cpp:425
 msgid "Was encrypted by older version"
-msgstr "Зашифрований застарілою версією"
+msgstr "Зашифрован устаревшей версией"
 
 #: EntangleMain.cpp:457
 msgid "Encrypting "
@@ -122,28 +121,32 @@ msgstr "Шифрую "
 
 #: EntangleMain.cpp:548
 msgid "Cannot rename the result"
-msgstr "Не можу перейменувати результат"
+msgstr "Не могу переимен-ть результат"
 
 #: EntangleMain.cpp:702
 msgid "Good"
-msgstr "Чудово"
+msgstr "Хороший"
 
 #: EntangleMain.cpp:710
-msgid "Too short"
-msgstr "Надто короткий"
+msgid "Medium"
+msgstr "Средний"
+
+#: EntangleMain.cpp:710
+msgid "Short"
+msgstr "Короткий"
 
 #: EntangleMain.cpp:728 EntangleMain.cpp:730
 msgid "Selected "
-msgstr "Обраний "
+msgstr "Выбрано "
 
 #: EntangleMain.cpp:728
 msgid ", received "
-msgstr ", отримано"
+msgstr ", получено "
 
 #: EntangleMain.cpp:730 EntangleMain.cpp:735
 msgid " object(s)"
-msgstr " об'єкт(ів)"
+msgstr " объект(ов)"
 
 #: EntangleMain.cpp:735
 msgid "Received "
-msgstr "Отримано "
+msgstr "Получено "
