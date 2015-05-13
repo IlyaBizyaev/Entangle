@@ -19,7 +19,7 @@ using namespace CryptoPP;
 /** Functions **/
 //File functions
 unsigned long long GetFileSize(wxString & path);
-bool SmartRemove(wxString & path, bool overwrite = false);
+bool SmartRemove(wxString & path, bool shred = false);
 void RandTempName(wxString & temp_name);
 //Helper functions
 void DeriveKey(byte * key, wxString & password, byte * iv);
@@ -432,7 +432,10 @@ void EntangleDialog::Process(wxString & name, wxString & password)
         }
         /** <<<<<<< FINISHED MAIN PART >>>>>>> **/
         In.close(); Out.close();
-        SmartRemove(name, true);
+        if(!ShouldDecrypt)
+            SmartRemove(name, true);
+        else
+            SmartRemove(name);
         if(!wxRenameFile(temp_path, name))
         {
             //If can`t rename
@@ -597,7 +600,7 @@ unsigned long long GetFileSize(wxString & path)
     return result.GetValue();
 }
 
-bool SmartRemove(wxString & path, bool overwrite)
+bool SmartRemove(wxString & path, bool shred)
 {
     //If there is already no such file, terminate.
     if(!wxFileExists(path)) return true;
@@ -610,7 +613,7 @@ bool SmartRemove(wxString & path, bool overwrite)
         fname.SetPermissions(permissions);
     }
 
-    if(overwrite) /* If overwriting is required */
+    if(shred) /* If overwriting is required */
     {
         fstream target;
         //Getting file size
@@ -619,16 +622,25 @@ bool SmartRemove(wxString & path, bool overwrite)
         target.open(path, ios_base::out | ios_base::binary);
         //Being paranoid
         if(!target.is_open()) return false;
-        //Moving to the beginning
-        target.seekp(0, ios::beg);
+        /**--------------------------------------------**/
         //Making some preparations
         unsigned long long dleft, multiple;
         dleft = fsize%BUF_SIZE; multiple = fsize-dleft;
-        char buffer[BUF_SIZE]; memset(buffer, (int)' ', BUF_SIZE);
-        //Overwriting the data
-        for(unsigned int i=0; i<multiple; i+=BUF_SIZE)
-            target.write(buffer, BUF_SIZE);
-        target.write(buffer, dleft);
+        char buffer[BUF_SIZE];
+        for(int iteration = 0; iteration < 10; ++iteration)
+        {
+            //Generating random data to write
+            rnd.GenerateBlock((byte*)buffer, BUF_SIZE);
+            //Moving to the beginning
+            target.seekp(0, ios::beg);
+            //Overwriting the data
+            for(unsigned int i=0; i<multiple; i+=BUF_SIZE)
+                target.write(buffer, BUF_SIZE);
+            target.write(buffer, dleft);
+            //Ensure that the data was written, not cached
+            target.flush();
+        }
+        /**--------------------------------------------**/
         //Closing the file
         target.close();
     }
@@ -699,9 +711,7 @@ void EntangleDialog::UpdateProgress()
 {
     //Re-calculates current progress
     //and updates the ProgressDialog()
-    wxASSERT(Total!=0);
-    wxASSERT(NumBytes!=0);
-    ShowProgress = (int)((double)NumBytes/Total*100);
+    ShowProgress = (double)NumBytes/Total*100;
     if(ShowProgress>100) ShowProgress=100;
     ProgressDialog1->Update(ShowProgress, show_str);
 }
@@ -725,7 +735,6 @@ void DeriveKey(byte * key, wxString & password, byte * iv)
     memcpy((void*)bpass, (void*)cbuff.data(), cbuff.length());
     //Derive the key
     PKCS5_PBKDF2_HMAC<SHA512> KeyDeriver;
-    //byte * derived, size_t derivedLen, byte purpose, byte * password, size_t pwdLen, byte * salt, size_t saltLen, uint iterations
     KeyDeriver.DeriveKey(key, 16, (byte)0, bpass, cbuff.length(), iv, 16, 1);
 }
 
