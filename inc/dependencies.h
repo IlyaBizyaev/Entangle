@@ -2,8 +2,6 @@
 #include<memory> //Memory copying
 #include<wx/dnd.h> //File drag & drop!
 #include<wx/filename.h>//Useful class
-#include<cstdlib>//For simple RNG
-#include<ctime>//For time()
 #include<wx/aboutdlg.h>
 #include<wx/msgdlg.h>
 

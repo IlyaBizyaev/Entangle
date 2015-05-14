@@ -23,10 +23,11 @@ bool SmartRemove(wxString & path, bool shred = false);
 void RandTempName(wxString & temp_name);
 //Helper functions
 void DeriveKey(byte * key, wxString & password, byte * iv);
+unsigned int RandomNumber(int num_min, int num_max);
 wxString ToString(int number);
 //For emergencies
 void AddError(wxString, wxString);
-void GoodFinish(fstream&, fstream&, wxString&, wxString&);
+void GoodFinish(EFile&, EFile&, wxString&);
 
 /** Global variables **/
 int NumFiles=0, ShowProgress=0;
@@ -118,7 +119,7 @@ END_EVENT_TABLE()
 class DroppedFilesReciever : public wxFileDropTarget
 {
 public:
-    DroppedFilesReciever(EntangleDialog * g_dialog) { dialog=g_dialog; }
+    DroppedFilesReciever(EntangleDialog * g_dialog) { dialog = g_dialog; }
     //Called when something is dropped onto the window
     bool OnDropFiles(wxCoord x, wxCoord y, const wxArrayString &filenames)
     {
@@ -178,8 +179,6 @@ EntangleDialog::EntangleDialog(wxWindow* parent,wxWindowID id)
 
     //Enable Drag & Drop
     SetDropTarget(new DroppedFilesReciever(this));
-    //Randomize the RNG
-    srand(time(0));
     //Collapse the file choosing tree
     GenericDirCtrl1->CollapseTree();
     //Remove any default selections
@@ -229,7 +228,7 @@ void EntangleDialog::Process(wxString & name, wxString & password)
             }
         }
         /** Opening files **/
-        fstream In, Out;
+        EFile In, Out;
         //Opening original file
         In.open(name, ios_base::in|ios_base::binary);
         if(!In.is_open())
@@ -243,7 +242,7 @@ void EntangleDialog::Process(wxString & name, wxString & password)
         if(!Out.is_open())
         {
             //Can't open the output file
-            GoodFinish(In, Out, temp_path, name);
+            GoodFinish(In, Out, temp_path);
             AddError(name, _("Cannot create an output file"));
             return;
         }
@@ -256,7 +255,7 @@ void EntangleDialog::Process(wxString & name, wxString & password)
             //Reserving space for IV, decrypted data and retrieved header
             byte iv[16]; byte * Retrieved; Header DecryptedHeader;
             //Reading the IV
-            In.read((char*)&iv, 16);
+            In.read(iv, 16);
             byte key[16]; DeriveKey(key, password, iv);
             try
             {
@@ -265,7 +264,7 @@ void EntangleDialog::Process(wxString & name, wxString & password)
                 //Setting key and IV
                 d.SetKeyWithIV(key, 16, iv, sizeof(iv));
                 //Reserving space for header and MAC and reading them
-                byte blockky[64]; In.read((char*)&blockky, 64);
+                byte blockky[64]; In.read(blockky, 64);
                 //Creating new Decryption filter
                 AuthenticatedDecryptionFilter df(d, NULL,
                     AuthenticatedDecryptionFilter::MAC_AT_END |
@@ -286,21 +285,21 @@ void EntangleDialog::Process(wxString & name, wxString & password)
            	catch(CryptoPP::InvalidArgument& e)
             {
                 AddError(name, "INV_ARGUMENT");
-                GoodFinish(In, Out, temp_path, name);
+                GoodFinish(In, Out, temp_path);
                 return;
             }
             catch(CryptoPP::AuthenticatedSymmetricCipher::BadState& e)
             {
                 // Pushing PDATA before ADATA results in:
                 AddError(name, "BAD_STATE");
-                GoodFinish(In, Out, temp_path, name);
+                GoodFinish(In, Out, temp_path);
                 return;
             }
             catch(CryptoPP::HashVerificationFilter::HashVerificationFailed& e)
             {
                 //Caught HashVerificationFailed
                 AddError(name, _("Invalid password or mode"));
-                GoodFinish(In, Out, temp_path, name);
+                GoodFinish(In, Out, temp_path);
                 return;
             }
             /** Comparing cores **/
@@ -312,7 +311,7 @@ void EntangleDialog::Process(wxString & name, wxString & password)
                     AddError(name, _("Requires newer program version"));
                 else //The core is older, an outdated version is needed.
                     AddError(name, _("Was encrypted by older version"));
-                GoodFinish(In, Out, temp_path, name);
+                GoodFinish(In, Out, temp_path);
                 return;
             }
             /** CFB Mode Processing **/
@@ -322,20 +321,18 @@ void EntangleDialog::Process(wxString & name, wxString & password)
             checker = fsize-dleft;
             for(unsigned long i=0; i<checker; i+=BUF_SIZE)
             {
-                In.read((char*)&transfer, BUF_SIZE);
+                In.read(transfer, BUF_SIZE);
                 cfbDecryption.ProcessData((byte*)&transfer, (byte*)&transfer, BUF_SIZE);
-                Out.write(reinterpret_cast<const char*>(&transfer), BUF_SIZE);
+                Out.write(transfer, BUF_SIZE);
                 NumBytes+=BUF_SIZE;
-                wxTheApp->Yield();
                 UpdateProgress();
             }
             if(dleft!=0)
             {
-                In.read((char*)&transfer, BUF_SIZE);
-                cfbDecryption.ProcessData((byte*)&transfer, (byte*)&transfer, BUF_SIZE);
-                Out.write(reinterpret_cast<const char*>(&transfer), dleft);
+                In.read(transfer, dleft);
+                cfbDecryption.ProcessData((byte*)&transfer, (byte*)&transfer, dleft);
+                Out.write(transfer, dleft);
                 NumBytes+=dleft;
-                wxTheApp->Yield();
                 UpdateProgress();
             }
 
@@ -346,7 +343,7 @@ void EntangleDialog::Process(wxString & name, wxString & password)
             show_str = _("Encrypting ")+name.substr(cut, name.Length()-cut);
             //Creating, generating and writing the IV
             byte iv[16]; rnd.GenerateBlock(iv, sizeof(iv));
-            Out.write(reinterpret_cast<const char*>(&iv), 16);
+            Out.write(iv, 16);
 
             byte key[16]; DeriveKey(key, password, iv);
 
@@ -379,26 +376,26 @@ void EntangleDialog::Process(wxString & name, wxString & password)
                 ef.ChannelPut("", (const byte*)&MakeHeader, sizeof(MakeHeader));
                 ef.ChannelMessageEnd("");
                 //Writing encrypted data
-                Out.write(reinterpret_cast<const char*>(Received), GotSize);
+                Out.write(Received, GotSize);
             }
             catch(CryptoPP::BufferedTransformation::NoChannelSupport& e)
             {
                 // The tag must go in to the default channel
                 AddError(name, "NO_CH_SUPPORT");
-                GoodFinish(In, Out, temp_path, name);
+                GoodFinish(In, Out, temp_path);
                 return;
             }
             catch(CryptoPP::AuthenticatedSymmetricCipher::BadState& e)
             {
                 // TODO: Get more info about this.
                 AddError(name, "BAD_STATE");
-                GoodFinish(In, Out, temp_path, name);
+                GoodFinish(In, Out, temp_path);
                 return;
             }
             catch(CryptoPP::InvalidArgument& e)
             {
                 AddError(name, "INV_ARGUMENT");
-                GoodFinish(In, Out, temp_path, name);
+                GoodFinish(In, Out, temp_path);
                 return;
             }
 
@@ -411,21 +408,18 @@ void EntangleDialog::Process(wxString & name, wxString & password)
             //THE VERY PROCESS
             for(unsigned long i=0; i<checker; i+=BUF_SIZE)
             {
-                In.read((char*)&transfer, BUF_SIZE);
+                In.read(transfer, BUF_SIZE);
                 cfbEncryption.ProcessData((byte*)&transfer, (byte*)&transfer, BUF_SIZE);
-                Out.write(reinterpret_cast<const char*>(&transfer), BUF_SIZE);
+                Out.write(transfer, BUF_SIZE);
                 NumBytes+=BUF_SIZE;
-                wxTheApp->Yield();
                 UpdateProgress();
             }
             if(dleft!=0)
             {
-                rnd.GenerateBlock(transfer, BUF_SIZE);
-                In.read((char*)&transfer, dleft);
-                cfbEncryption.ProcessData((byte*)&transfer, (byte*)&transfer, BUF_SIZE);
-                Out.write(reinterpret_cast<const char*>(&transfer), BUF_SIZE);
+                In.read(transfer, dleft);
+                cfbEncryption.ProcessData((byte*)&transfer, (byte*)&transfer, dleft);
+                Out.write(transfer, dleft);
                 NumBytes+=dleft;
-                wxTheApp->Yield();
                 UpdateProgress();
             }
 
@@ -622,11 +616,11 @@ bool SmartRemove(wxString & path, bool shred)
         target.open(path, ios_base::out | ios_base::binary);
         //Being paranoid
         if(!target.is_open()) return false;
-        /**--------------------------------------------**/
         //Making some preparations
         unsigned long long dleft, multiple;
         dleft = fsize%BUF_SIZE; multiple = fsize-dleft;
         char buffer[BUF_SIZE];
+        /**--------------------------------------------**/
         for(int iteration = 0; iteration < 10; ++iteration)
         {
             //Generating random data to write
@@ -656,20 +650,20 @@ void RandTempName(wxString & temp_name)
     wxString new_temp_name;
     do //While such file exists
     {
-        //Random filename length (0 - 20):
-        int length = rand()%20+1, range = 0;
+        //Random filename length (1 - 20):
+        int length = RandomNumber(1, 20), range = 0;
         //Creating new char buffer for the filename
         char * filename = new char[length+1];
         //Filling the array (a-z, A-Z, 0-9):
         for(int i=0; i<length; ++i)
         {
-            range = rand()%3+1;
-            if(range==1) //Number (1-9):
-                filename[i] = rand()%10+48;
+            range = RandomNumber(1, 3);
+            if(range==1) //Number (0-9):
+                filename[i] = RandomNumber(48, 57);
             else if(range==2) //Capital letter (A-Z):
-                filename[i] = rand()%26+65;
+                filename[i] = RandomNumber(65, 90);
             else if(range==3) //Small letter (a-z):
-                filename[i] = rand()%26+97;
+                filename[i] = RandomNumber(97, 122);
         }
         //Writing zero character at the end
         filename[length] = '\0';
@@ -714,6 +708,7 @@ void EntangleDialog::UpdateProgress()
     ShowProgress = (double)NumBytes/Total*100;
     if(ShowProgress>100) ShowProgress=100;
     ProgressDialog1->Update(ShowProgress, show_str);
+    wxTheApp->Yield();
 }
 
 void EntangleDialog::SetText(int line, wxString message)
@@ -738,6 +733,14 @@ void DeriveKey(byte * key, wxString & password, byte * iv)
     KeyDeriver.DeriveKey(key, 16, (byte)0, bpass, cbuff.length(), iv, 16, 1);
 }
 
+unsigned int RandomNumber(int num_min, int num_max)
+{
+    unsigned int result; byte * p_num = (byte*)&result;
+    rnd.GenerateBlock(p_num, sizeof(int));
+    result = result % (num_max-num_min+1) + num_min;
+    return result;
+}
+
 wxString ToString(int number)
 {
     return wxString::FromDouble(number);
@@ -752,7 +755,7 @@ void AddError(wxString fname, wxString code)
     WentWrong = true;
 }
 
-void GoodFinish(fstream & In, fstream & Out, wxString & temp_path, wxString & name)
+void GoodFinish(EFile & In, EFile & Out, wxString & temp_path)
 {
     //Checking whether any files are open.
     //If so, closing them.
@@ -761,3 +764,35 @@ void GoodFinish(fstream & In, fstream & Out, wxString & temp_path, wxString & na
     //Removing the temp file
     SmartRemove(temp_path);
 }
+
+/* EFile wrapper's functions */
+
+EFile::EFile() { IsOk = false; }
+
+EFile::EFile(wxString filename, ios_base::openmode file_mode)
+{ open(filename, file_mode); }
+
+void EFile::open(wxString filename, ios_base::openmode file_mode)
+{
+    cfile.open(filename, file_mode);
+    if(!cfile.is_open()) { IsOk = false; return; }
+    name = filename; mode = file_mode; IsOk = true;
+}
+
+bool EFile::read(byte* data, int size)
+{
+    if(!(mode & ios_base::in)) return false;
+    cfile.read((char*)data, size);
+    return true;
+}
+
+bool EFile::write(const byte* data, int size)
+{
+    if(!(mode & ios_base::out)) return false;
+    cfile.write(reinterpret_cast<const char*>(data), size);
+    return true;
+}
+
+bool EFile::is_open() { return IsOk; }
+void EFile::close() { cfile.close(); }
+EFile::~EFile() { close(); }
