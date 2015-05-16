@@ -1,6 +1,8 @@
+#ifndef ENTANGLE_DEPENDS_H
+#define ENTANGLE_DEPENDS_H
+
 #include<fstream>  //Read/write operations
 #include<memory> //Memory copying
-#include<wx/dnd.h> //File drag & drop!
 #include<wx/filename.h>//Useful class
 #include<wx/aboutdlg.h>
 #include<wx/msgdlg.h>
@@ -24,4 +26,6 @@
 #include<cryptopp/pwdbased.h>
 #include<cryptopp/sha.h>
 #endif // __WIN32__
+
+#endif // ENTANGLE_DEPENDS_H
 

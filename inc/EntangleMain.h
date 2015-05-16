@@ -21,11 +21,10 @@
 #include <wx/textctrl.h>
 //*)
 
-#include<fstream>
-
-typedef unsigned char byte;
+#include <fstream>
 using std::ios_base;
 using std::fstream;
+
 
 class EntangleDialog: public wxDialog
 {
@@ -33,6 +32,7 @@ class EntangleDialog: public wxDialog
         EntangleDialog(wxWindow* parent,wxWindowID id = -1);
         virtual ~EntangleDialog();
         void Process(wxString & name, wxString & password);
+        void AddDropped(wxArrayString filenames);
         void UpdateProgress();
         void UpdateTasks();
         void SetText(int line, wxString message);
@@ -71,24 +71,9 @@ class EntangleDialog: public wxDialog
         wxBitmapButton* BitmapButton1;
         //*)
 
+        wxArrayString tasks, drop_files;
+
         DECLARE_EVENT_TABLE()
-};
-
-class EFile
-{
-public:
-    EFile();
-    void open(wxString filename, ios_base::openmode file_mode);
-    EFile(wxString filename, ios_base::openmode file_mode);
-    bool read(byte* data, int size);
-    bool write(const byte* data, int size);
-    bool is_open(); void close(); ~EFile();
-
-private:
-    fstream cfile;
-    ios_base::openmode mode;
-    wxString name;
-    bool IsOk;
 };
 
 #endif // ENTANGLEMAIN_H

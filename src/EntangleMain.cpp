@@ -9,7 +9,8 @@
 
 #include "EntangleMain.h"
 #include "EntangleApp.h"
-#include "dependencies.h"
+#include "EntangleExtras.h"
+#include "EntangleDepends.h"
 #define BUF_SIZE 16384
 #define TAG_SIZE 16
 #define ENTANGLE_CORE 2
@@ -34,63 +35,13 @@ int NumFiles=0, ShowProgress=0;
 unsigned long long Total=0, NumBytes=0;
 bool TasksSelected = false, PasswordTypedIn = false, ShouldDecrypt = false, WentWrong = false;
 
+unsigned long long ULL_MAX = -1;
+
 /** Global objects **/
-wxArrayString tasks, drop_files;
 //String which is displayed in ProgressDialog()
 wxString show_str = _("Starting...");
 //Random data generator
 AutoSeededRandomPool rnd;
-
-unsigned long long ULL_MAX = -1;
-
-//My lovely structures ^_^
-struct Header
-{
-    int core_version;                   /* Header format version */
-    unsigned long long file_size;       /* Size of original file */
-    byte keys[32];                      /* AES-256 key storage area */
-};
-
-class EntangleSink : public Bufferless<Sink> /* Array-based sink class for GCM */
-{
-public:
-    //Constructor (accepts pointer to an array and to size_t variable)
-    EntangleSink(byte ** g_output, size_t & g_size) : output(g_output), out_size(g_size)
-    {   Clean();  }
-
-    //Destructor
-    ~EntangleSink()
-    {   Clean();  }
-
-    // Function which accepts data from AES/GCM and puts to the linked array
-    size_t Put2(const byte *inString, size_t length, int, bool)
-    {
-        if(!inString || !length) return length;
-        //Reallocating the array
-        *output = (byte*)realloc(*output, out_size+length);
-        //Adding new data
-        byte * WhereToJoin = *output + out_size;
-        memcpy(WhereToJoin, inString, length);
-        //Updating the size
-        out_size+=length;
-        return 0;
-    }
-
-    // Clean(): deallocates the array and resets the out_size variable.
-    void Clean()
-    {
-        if(*output!=NULL)
-        {
-            free(*output);
-            *output = NULL;
-        }
-        out_size=0;
-    }
-private:
-    byte ** output;     //Pointer to an array
-    size_t & out_size;  //Stores number of bytes in array
-};
-
 
 //(*InternalHeaders(EntangleDialog)
 #include <wx/string.h>
@@ -115,23 +66,6 @@ BEGIN_EVENT_TABLE(EntangleDialog,wxDialog)
     //(*EventTable(EntangleDialog)
     //*)
 END_EVENT_TABLE()
-
-class DroppedFilesReciever : public wxFileDropTarget
-{
-public:
-    DroppedFilesReciever(EntangleDialog * g_dialog) { dialog = g_dialog; }
-    //Called when something is dropped onto the window
-    bool OnDropFiles(wxCoord x, wxCoord y, const wxArrayString &filenames)
-    {
-        //Save paths to the global array
-        drop_files.insert(drop_files.end(), filenames.begin(), filenames.end());
-        dialog->UpdateTasks();
-        return true;
-    }
-private:
-    EntangleDialog * dialog; //Pointer to the dialog, needed to refresh the StaticText
-};
-
 
 /* Window constructor and destructor */
 //wxDIRCTRL_MULTIPLE
@@ -701,6 +635,11 @@ void EntangleDialog::UpdateTasks() //TODO: Simplify!
     }
 }
 
+void EntangleDialog::AddDropped(wxArrayString filenames)
+{
+    drop_files.insert(drop_files.end(), filenames.begin(), filenames.end());
+}
+
 void EntangleDialog::UpdateProgress()
 {
     //Re-calculates current progress
@@ -764,35 +703,3 @@ void GoodFinish(EFile & In, EFile & Out, wxString & temp_path)
     //Removing the temp file
     SmartRemove(temp_path);
 }
-
-/* EFile wrapper's functions */
-
-EFile::EFile() { IsOk = false; }
-
-EFile::EFile(wxString filename, ios_base::openmode file_mode)
-{ open(filename, file_mode); }
-
-void EFile::open(wxString filename, ios_base::openmode file_mode)
-{
-    cfile.open(filename, file_mode);
-    if(!cfile.is_open()) { IsOk = false; return; }
-    name = filename; mode = file_mode; IsOk = true;
-}
-
-bool EFile::read(byte* data, int size)
-{
-    if(!(mode & ios_base::in)) return false;
-    cfile.read((char*)data, size);
-    return true;
-}
-
-bool EFile::write(const byte* data, int size)
-{
-    if(!(mode & ios_base::out)) return false;
-    cfile.write(reinterpret_cast<const char*>(data), size);
-    return true;
-}
-
-bool EFile::is_open() { return IsOk; }
-void EFile::close() { cfile.close(); }
-EFile::~EFile() { close(); }
