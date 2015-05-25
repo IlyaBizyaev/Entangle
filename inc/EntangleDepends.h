@@ -4,6 +4,7 @@
 #include<fstream>  //Read/write operations
 #include<memory> //Memory copying
 #include<wx/filename.h>//Useful class
+#include <wx/dir.h>
 #include<wx/aboutdlg.h>
 #include<wx/msgdlg.h>
 

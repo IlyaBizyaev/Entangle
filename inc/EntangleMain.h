@@ -31,7 +31,9 @@ class EntangleDialog: public wxDialog
     public:
         EntangleDialog(wxWindow* parent,wxWindowID id = -1);
         virtual ~EntangleDialog();
-        void Process(wxString & name, wxString & password);
+        void Preprocess();
+        void Process(size_t task_index, wxString & password);
+        void CleanUp();
         void AddDropped(wxArrayString filenames);
         void UpdateProgress();
         void UpdateTasks();
@@ -71,7 +73,8 @@ class EntangleDialog: public wxDialog
         wxBitmapButton* BitmapButton1;
         //*)
 
-        wxArrayString tasks, drop_files;
+        wxArrayString UI_files, drop_files, tasks;
+        unsigned long long * file_sizes;
 
         DECLARE_EVENT_TABLE()
 };

@@ -128,258 +128,237 @@ EntangleDialog::~EntangleDialog()
 }
 
 /* Main function */
-void EntangleDialog::Process(wxString & name, wxString & password)
+void EntangleDialog::Process(size_t task_index, wxString & password)
 {
     wxASSERT(Total!=0);
-    /** Checking the object type **/
-    if(wxDirExists(name))////////////////// FOLDER //////////////////////
+    //Preparing name for temp file
+    wxString name = tasks[task_index];
+    size_t cut = name.find_last_of(wxFILE_SEP_PATH)+1;
+    wxString temp_path = name.substr(0, cut);
+    RandTempName(temp_path);
+    //Required variables
+    unsigned long fsize, checker, dleft;
+    /** Opening files **/
+    EFile In, Out;
+    //Opening original file
+    In.open(name, ios_base::in|ios_base::binary);
+    if(!In.is_open())
     {
-        // If that's folder, call Process() recursively
-        // for all the objects inside it.
-        wxString searcher = wxFindFirstFile(name+"/*");
-        while (!searcher.empty()) //While there are files
-        {
-            Process(searcher, password);
-            searcher = wxFindNextFile();
-        }
+        //Can't open the input file
+        AddError(name, _("Cannot open the input file"));
+        return;
     }
-    else//////////////////FILE//////////////////////
+    //Opening the temp file
+    Out.open(temp_path, ios_base::out|ios_base::trunc|ios_base::binary);
+    if(!Out.is_open())
     {
-        //Preparing name for temp file
-        size_t cut = name.find_last_of(wxFILE_SEP_PATH)+1;
-        wxString temp_path = name.substr(0, cut);
-        RandTempName(temp_path);
-        //Required variables
-        unsigned long fsize, checker, dleft;
-        //If encryption, getting file size
-        if(!ShouldDecrypt)
+        //Can't open the output file
+        GoodFinish(In, Out, temp_path);
+        AddError(name, _("Cannot create an output file"));
+        return;
+    }
+    /** <<<<<<< MOST IMPORTANT PART >>>>>>> **/
+
+    if(ShouldDecrypt)
+    {
+        /**DECRYPTION**/
+        show_str = _("Decrypting ")+name.substr(cut, name.Length()-cut);
+        //Reserving space for IV, decrypted data and retrieved header
+        byte iv[16]; byte * Retrieved; Header DecryptedHeader;
+        //Reading the IV
+        In.read(iv, 16);
+        byte key[16]; DeriveKey(key, password, iv);
+        try
         {
-            fsize = GetFileSize(name);
-            if(fsize==ULL_MAX)
-            {
-                AddError(name, _("Cannot access"));
-                return;
-            }
+            //New AES Decryption object
+            GCM<AES>::Decryption d;
+            //Setting key and IV
+            d.SetKeyWithIV(key, 16, iv, sizeof(iv));
+            //Reserving space for header and MAC and reading them
+            byte blockky[64]; In.read(blockky, 64);
+            //Creating new Decryption filter
+            AuthenticatedDecryptionFilter df(d, NULL,
+                AuthenticatedDecryptionFilter::MAC_AT_END |
+                AuthenticatedDecryptionFilter::THROW_EXCEPTION, TAG_SIZE);
+            //Putting the decrypted header to the filter
+            df.ChannelPut("", (const byte*)&blockky, 64);
+            // If the object throws, it most likely occurs here
+            df.ChannelMessageEnd("");
+
+            //Get data from channel
+            df.SetRetrievalChannel("");
+            size_t n = (size_t)df.MaxRetrievable();
+            Retrieved = new byte[n];
+
+            if(n > 0) { df.Get(Retrieved, n); }
+            memcpy(&DecryptedHeader, Retrieved, n);
         }
-        /** Opening files **/
-        EFile In, Out;
-        //Opening original file
-        In.open(name, ios_base::in|ios_base::binary);
-        if(!In.is_open())
+        catch(CryptoPP::InvalidArgument& e)
         {
-            //Can't open the input file
-            AddError(name, _("Cannot open the input file"));
-            return;
-        }
-        //Opening the temp file
-        Out.open(temp_path, ios_base::out|ios_base::trunc|ios_base::binary);
-        if(!Out.is_open())
-        {
-            //Can't open the output file
+            AddError(name, "INV_ARGUMENT");
             GoodFinish(In, Out, temp_path);
-            AddError(name, _("Cannot create an output file"));
             return;
         }
-        /** <<<<<<< MOST IMPORTANT PART >>>>>>> **/
-
-        if(ShouldDecrypt)
+        catch(CryptoPP::AuthenticatedSymmetricCipher::BadState& e)
         {
-            /**DECRYPTION**/
-            show_str = _("Decrypting ")+name.substr(cut, name.Length()-cut);
-            //Reserving space for IV, decrypted data and retrieved header
-            byte iv[16]; byte * Retrieved; Header DecryptedHeader;
-            //Reading the IV
-            In.read(iv, 16);
-            byte key[16]; DeriveKey(key, password, iv);
-            try
-            {
-                //New AES Decryption object
-                GCM<AES>::Decryption d;
-                //Setting key and IV
-                d.SetKeyWithIV(key, 16, iv, sizeof(iv));
-                //Reserving space for header and MAC and reading them
-                byte blockky[64]; In.read(blockky, 64);
-                //Creating new Decryption filter
-                AuthenticatedDecryptionFilter df(d, NULL,
-                    AuthenticatedDecryptionFilter::MAC_AT_END |
-                    AuthenticatedDecryptionFilter::THROW_EXCEPTION, TAG_SIZE);
-                //Putting the decrypted header to the filter
-                df.ChannelPut("", (const byte*)&blockky, 64);
-                // If the object throws, it most likely occurs here
-                df.ChannelMessageEnd("");
-
-                //Get data from channel
-                df.SetRetrievalChannel("");
-                size_t n = (size_t)df.MaxRetrievable();
-                Retrieved = new byte[n];
-
-                if(n > 0) { df.Get(Retrieved, n); }
-                memcpy(&DecryptedHeader, Retrieved, n);
-            }
-           	catch(CryptoPP::InvalidArgument& e)
-            {
-                AddError(name, "INV_ARGUMENT");
-                GoodFinish(In, Out, temp_path);
-                return;
-            }
-            catch(CryptoPP::AuthenticatedSymmetricCipher::BadState& e)
-            {
-                // Pushing PDATA before ADATA results in:
-                AddError(name, "BAD_STATE");
-                GoodFinish(In, Out, temp_path);
-                return;
-            }
-            catch(CryptoPP::HashVerificationFilter::HashVerificationFailed& e)
-            {
-                //Caught HashVerificationFailed
-                AddError(name, _("Invalid password or mode"));
-                GoodFinish(In, Out, temp_path);
-                return;
-            }
-            /** Comparing cores **/
-            if(DecryptedHeader.core_version!=ENTANGLE_CORE)
-            {
-                int that_core = DecryptedHeader.core_version;
-                //The core is newer and the user needs an upgrade (^_^)
-                if(that_core > ENTANGLE_CORE)
-                    AddError(name, _("Requires newer program version"));
-                else //The core is older, an outdated version is needed.
-                    AddError(name, _("Was encrypted by older version"));
-                GoodFinish(In, Out, temp_path);
-                return;
-            }
-            /** CFB Mode Processing **/
-            CFB_Mode<AES>::Decryption cfbDecryption(DecryptedHeader.keys, 32, iv);
-            byte transfer[BUF_SIZE];
-            fsize = DecryptedHeader.file_size; dleft = fsize%BUF_SIZE;
-            checker = fsize-dleft;
-            for(unsigned long i=0; i<checker; i+=BUF_SIZE)
-            {
-                In.read(transfer, BUF_SIZE);
-                cfbDecryption.ProcessData((byte*)&transfer, (byte*)&transfer, BUF_SIZE);
-                Out.write(transfer, BUF_SIZE);
-                NumBytes+=BUF_SIZE;
-                UpdateProgress();
-            }
-            if(dleft!=0)
-            {
-                In.read(transfer, dleft);
-                cfbDecryption.ProcessData((byte*)&transfer, (byte*)&transfer, dleft);
-                Out.write(transfer, dleft);
-                NumBytes+=dleft;
-                UpdateProgress();
-            }
-
-        }
-        else
-        {
-            /** ENCRYPTION **/
-            show_str = _("Encrypting ")+name.substr(cut, name.Length()-cut);
-            //Creating, generating and writing the IV
-            byte iv[16]; rnd.GenerateBlock(iv, sizeof(iv));
-            Out.write(iv, 16);
-
-            byte key[16]; DeriveKey(key, password, iv);
-
-            /** Preparing the Entangle Header **/
-            //Creating and cleaning
-            Header MakeHeader; memset(&MakeHeader, 0x00, sizeof(MakeHeader));
-            //Writing the file size
-            MakeHeader.file_size = fsize;
-            //Writing the version of my lovely program \_(^_^)_/
-            MakeHeader.core_version = ENTANGLE_CORE;
-            //Creating, generating and copying file encryption keys
-            byte file_keys[32]; rnd.GenerateBlock(file_keys, 32);
-            memcpy(MakeHeader.keys, file_keys, 32);
-            /** Header is now ready for saving! **/
-
-            /** Encrypting and writing the header! **/
-            try
-            {
-                //New AES Encryption object
-                GCM<AES>::Encryption e;
-                //Setting user key and random IV
-                e.SetKeyWithIV(key, 16, iv, sizeof(iv));
-                //Preparing storage for results
-                byte * Received = NULL;
-                size_t GotSize = 0;
-                //Filter with an EntangleSink
-                AuthenticatedEncryptionFilter ef(e,
-                new EntangleSink(&Received, GotSize), false, TAG_SIZE);
-                //Encrypting MakeHeader
-                ef.ChannelPut("", (const byte*)&MakeHeader, sizeof(MakeHeader));
-                ef.ChannelMessageEnd("");
-                //Writing encrypted data
-                Out.write(Received, GotSize);
-            }
-            catch(CryptoPP::BufferedTransformation::NoChannelSupport& e)
-            {
-                // The tag must go in to the default channel
-                AddError(name, "NO_CH_SUPPORT");
-                GoodFinish(In, Out, temp_path);
-                return;
-            }
-            catch(CryptoPP::AuthenticatedSymmetricCipher::BadState& e)
-            {
-                // TODO: Get more info about this.
-                AddError(name, "BAD_STATE");
-                GoodFinish(In, Out, temp_path);
-                return;
-            }
-            catch(CryptoPP::InvalidArgument& e)
-            {
-                AddError(name, "INV_ARGUMENT");
-                GoodFinish(In, Out, temp_path);
-                return;
-            }
-
-            /** CFB Mode Processing **/
-            //Create Encryption
-            CFB_Mode<AES>::Encryption cfbEncryption(file_keys, 32, iv);
-            byte transfer[BUF_SIZE];
-            dleft = fsize%BUF_SIZE;
-            checker = fsize-dleft;
-            //THE VERY PROCESS
-            for(unsigned long i=0; i<checker; i+=BUF_SIZE)
-            {
-                In.read(transfer, BUF_SIZE);
-                cfbEncryption.ProcessData((byte*)&transfer, (byte*)&transfer, BUF_SIZE);
-                Out.write(transfer, BUF_SIZE);
-                NumBytes+=BUF_SIZE;
-                UpdateProgress();
-            }
-            if(dleft!=0)
-            {
-                In.read(transfer, dleft);
-                cfbEncryption.ProcessData((byte*)&transfer, (byte*)&transfer, dleft);
-                Out.write(transfer, dleft);
-                NumBytes+=dleft;
-                UpdateProgress();
-            }
-
-        }
-        /** <<<<<<< FINISHED MAIN PART >>>>>>> **/
-        In.close(); Out.close();
-        if(!ShouldDecrypt)
-            SmartRemove(name, true);
-        else
-            SmartRemove(name);
-        if(!wxRenameFile(temp_path, name))
-        {
-            //If can`t rename
-            AddError(name, _("Cannot rename the result"));
+            // Pushing PDATA before ADATA results in:
+            AddError(name, "BAD_STATE");
+            GoodFinish(In, Out, temp_path);
             return;
         }
-        ++NumFiles;
+        catch(CryptoPP::HashVerificationFilter::HashVerificationFailed& e)
+        {
+            //Caught HashVerificationFailed
+            AddError(name, _("Invalid password or mode"));
+            GoodFinish(In, Out, temp_path);
+            return;
+        }
+        /** Comparing cores **/
+        if(DecryptedHeader.core_version!=ENTANGLE_CORE)
+        {
+            int that_core = DecryptedHeader.core_version;
+            //The core is newer and the user needs an upgrade (^_^)
+            if(that_core > ENTANGLE_CORE)
+                AddError(name, _("Requires newer program version"));
+            else //The core is older, an outdated version is needed.
+                AddError(name, _("Was encrypted by older version"));
+            GoodFinish(In, Out, temp_path);
+            return;
+        }
+        /** CFB Mode Processing **/
+        CFB_Mode<AES>::Decryption cfbDecryption(DecryptedHeader.keys, 32, iv);
+        byte transfer[BUF_SIZE];
+        fsize = DecryptedHeader.file_size; dleft = fsize%BUF_SIZE;
+        checker = fsize-dleft;
+        for(unsigned long i=0; i<checker; i+=BUF_SIZE)
+        {
+            In.read(transfer, BUF_SIZE);
+            cfbDecryption.ProcessData((byte*)&transfer, (byte*)&transfer, BUF_SIZE);
+            Out.write(transfer, BUF_SIZE);
+            NumBytes+=BUF_SIZE;
+            UpdateProgress();
+        }
+        if(dleft!=0)
+        {
+            In.read(transfer, dleft);
+            cfbDecryption.ProcessData((byte*)&transfer, (byte*)&transfer, dleft);
+            Out.write(transfer, dleft);
+            NumBytes+=dleft;
+            UpdateProgress();
+        }
+
     }
+    else
+    {
+        /** ENCRYPTION **/
+        show_str = _("Encrypting ")+name.substr(cut, name.Length()-cut);
+        //Creating, generating and writing the IV
+        byte iv[16]; rnd.GenerateBlock(iv, sizeof(iv));
+        Out.write(iv, 16);
+        //Deriving the key
+        byte key[16]; DeriveKey(key, password, iv);
+        //Getting file size
+        fsize = file_sizes[task_index];
+
+        /** Preparing the Entangle Header **/
+        //Creating and cleaning
+        Header MakeHeader; memset(&MakeHeader, 0x00, sizeof(MakeHeader));
+        //Writing the file size
+        MakeHeader.file_size = fsize;
+        //Writing the version of my lovely program \_(^_^)_/
+        MakeHeader.core_version = ENTANGLE_CORE;
+        //Creating, generating and copying file encryption keys
+        byte file_keys[32]; rnd.GenerateBlock(file_keys, 32);
+        memcpy(MakeHeader.keys, file_keys, 32);
+        /** Header is now ready for saving! **/
+
+        /** Encrypting and writing the header! **/
+        try
+        {
+            //New AES Encryption object
+            GCM<AES>::Encryption e;
+            //Setting user key and random IV
+            e.SetKeyWithIV(key, 16, iv, sizeof(iv));
+            //Preparing storage for results
+            byte * Received = NULL;
+            size_t GotSize = 0;
+            //Filter with an EntangleSink
+            AuthenticatedEncryptionFilter ef(e,
+            new EntangleSink(&Received, GotSize), false, TAG_SIZE);
+            //Encrypting MakeHeader
+            ef.ChannelPut("", (const byte*)&MakeHeader, sizeof(MakeHeader));
+            ef.ChannelMessageEnd("");
+            //Writing encrypted data
+            Out.write(Received, GotSize);
+        }
+        catch(CryptoPP::BufferedTransformation::NoChannelSupport& e)
+        {
+            // The tag must go in to the default channel
+            AddError(name, "NO_CH_SUPPORT");
+            GoodFinish(In, Out, temp_path);
+            return;
+        }
+        catch(CryptoPP::AuthenticatedSymmetricCipher::BadState& e)
+        {
+            // TODO: Get more info about this.
+            AddError(name, "BAD_STATE");
+            GoodFinish(In, Out, temp_path);
+            return;
+        }
+        catch(CryptoPP::InvalidArgument& e)
+        {
+            AddError(name, "INV_ARGUMENT");
+            GoodFinish(In, Out, temp_path);
+            return;
+        }
+
+        /** CFB Mode Processing **/
+        //Create Encryption
+        CFB_Mode<AES>::Encryption cfbEncryption(file_keys, 32, iv);
+        byte transfer[BUF_SIZE];
+        dleft = fsize%BUF_SIZE;
+        checker = fsize-dleft;
+        //THE VERY PROCESS
+        for(unsigned long i=0; i<checker; i+=BUF_SIZE)
+        {
+            In.read(transfer, BUF_SIZE);
+            cfbEncryption.ProcessData((byte*)&transfer, (byte*)&transfer, BUF_SIZE);
+            Out.write(transfer, BUF_SIZE);
+            NumBytes+=BUF_SIZE;
+            UpdateProgress();
+        }
+        if(dleft!=0)
+        {
+            In.read(transfer, dleft);
+            cfbEncryption.ProcessData((byte*)&transfer, (byte*)&transfer, dleft);
+            Out.write(transfer, dleft);
+            NumBytes+=dleft;
+            UpdateProgress();
+        }
+
+    }
+    /** <<<<<<< FINISHED MAIN PART >>>>>>> **/
+    In.close(); Out.close();
+    if(!ShouldDecrypt)
+        SmartRemove(name, true);
+    else
+        SmartRemove(name);
+    if(!wxRenameFile(temp_path, name))
+    {
+        //If can`t rename
+        AddError(name, _("Cannot rename the result"));
+        return;
+    }
+    ++NumFiles;
     return;
 }
 
 /* Event processors */
 void EntangleDialog::OnButton1Click(wxCommandEvent& WXUNUSED(event))
 {
-    NumFiles=0; NumBytes=0; Total=0; //Clear All
-    //Check if tasks are selected and the password is typed in
+    /* PREPARATIONS */
+    NumFiles=0; NumBytes=0; Total=0; //Clear counters
+    //Ensure that tasks are selected and the password is typed in
     if(!TasksSelected)
     {
         SetText(1, _("No tasks selected!"));
@@ -392,37 +371,9 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& WXUNUSED(event))
     }
     //Get the password
     wxString password = TextCtrl1->GetLineText(0);
-    //Adding the Drag & Drop array
-    tasks.insert(tasks.end(), drop_files.begin(), drop_files.end());
-    drop_files.Clear();
-    //If there are no tasks
-    /* ESTIMATING REQUIRED WORK */
-    unsigned long long fsize;
-    for(size_t i=0; i<tasks.GetCount(); ++i)
-    {
-        if(!wxFileName::Exists(tasks[i]))
-        {
-            tasks[i]="SKIP";
-            AddError(tasks[i], _("Does not exist"));
-            continue;
-        }
-        fsize = GetFileSize(tasks[i]);
-        //Processing exceptions
-        if(fsize==0) //Empty file
-        {
-            tasks[i]="SKIP";
-            ++NumFiles;
-            continue;
-        }
-        if(fsize==ULL_MAX) //If GetFileSize() went wrong
-        {
-            tasks[i]="SKIP";
-            AddError(tasks[i], _("Cannot access"));
-            continue;
-        }
-        Total+=fsize;
-    }
-
+    //Expand all the paths, get file sizes
+    Preprocess();
+    //Update the UI
     SetText(2, _("Processing...")); wxYield();
     ProgressDialog1 = new wxProgressDialog(_("Progress"), _("Starting..."), 100, this);
     ProgressDialog1->CenterOnParent();
@@ -430,15 +381,17 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& WXUNUSED(event))
     ProgressDialog1->Update(0, show_str);
 
     /* PROCESSING THE TASKS */
-    for(size_t i=0; i<tasks.GetCount(); ++i)
+    for(size_t task_index = 0; task_index<tasks.GetCount(); ++task_index)
     {
-        if(tasks[i]!="SKIP")
-            Process(tasks[i], password);
+        if(tasks[task_index]!="SKIP")
+            Process(task_index, password);
     }
     ProgressDialog1->Update(100, _("Done!"));
 
+    //Check if there were any problems during processing
     if(WentWrong)
     {
+        //If it is so, show them to the user
         SetText(2, _("Went wrong :("));
         wxLogError(_("Something went wrong:"));
         wxLog::FlushActive();
@@ -446,6 +399,8 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& WXUNUSED(event))
     }
     else
         SetText(2, _("Complete (")+ToString(NumFiles)+_(" file(s))"));
+    //Cleaning up
+    CleanUp();
 }
 
 void EntangleDialog::OnFileReselect(wxTreeEvent& WXUNUSED(event))
@@ -497,35 +452,76 @@ void EntangleDialog::OnAbout(wxCommandEvent& WXUNUSED(event))
 }
 
 /* File functions */
+//Tasks preprocessor
+void EntangleDialog::Preprocess()
+{
+    /* COLLECTING FILE PATHS */
+    wxArrayString all_tasks;
+    all_tasks.insert(all_tasks.end(), UI_files.begin(), UI_files.end());
+    all_tasks.insert(all_tasks.end(), drop_files.begin(), drop_files.end());
+    //For each task
+    for(size_t pos = 0; pos < all_tasks.size(); ++pos)
+    {
+        /* If the object does not exist */
+        if(!wxFileName::Exists(all_tasks[pos]))
+        {
+            AddError(all_tasks[pos], _("Does not exist"));
+            continue;
+        }
+
+		/* Checking object type */
+		if(wxDirExists(all_tasks[pos]))// If that's folder, scan all subdirectories and files inside it.
+			wxDir::GetAllFiles(all_tasks[pos], &tasks);
+		else//If that's file, simply push it to the vector.
+			tasks.push_back(all_tasks[pos]);
+    }
+
+    /* GETTING FILE SIZES */
+    unsigned long long fsize;
+    file_sizes = new unsigned long long[tasks.size()];
+    for(size_t i=0; i<tasks.GetCount(); ++i)
+    {
+        fsize = GetFileSize(tasks[i]);
+        //Processing exceptions
+        if(fsize==0) //Empty file
+        {
+            tasks[i]="SKIP";
+            ++NumFiles;
+            continue;
+        }
+        if(fsize==ULL_MAX) //If GetFileSize() went wrong
+        {
+            tasks[i]="SKIP";
+            AddError(tasks[i], _("Cannot access"));
+            continue;
+        }
+        file_sizes[i] = fsize;
+        Total+=fsize;
+    }
+}
+
+//Cleaning up after processing
+void EntangleDialog::CleanUp()
+{
+    //Clean task arrays
+    drop_files.Clear(); tasks.Clear();
+    //Deallocate array with file sizes
+    delete[] file_sizes;
+    //If only dropped files were processed, no tasks are now selected.
+    if(UI_files.empty()) TasksSelected = false;
+}
+
 unsigned long long GetFileSize(wxString & path)
 {
-    //Check if it does not exist at all
-    if(!wxFileName::Exists(path)) return -1;
-    //Variable for the result
-    wxULongLong result = 0;
-    /** If that's folder **/
-    if(wxDirExists(path))
-    {
-        // If that's folder, call GetFileSize() recursively
-        // for all the objects inside it.
-        wxString searcher = wxFindFirstFile(path+"/*");
-        while (!searcher.empty()) //While there are files
-        {
-            result+=GetFileSize(searcher);
-            searcher = wxFindNextFile();
-        }
-    }
-    else /** If that's file **/
-    {
-        //If file does not exist
-        if(!wxFileExists(path)) return -1;
-        //Getting file size
-        result = wxFileName::GetSize(path);
-        //If the file is unavailable
-        if(result==wxInvalidSize) return -1;
-    }
+
+    //If file does not exist
+    if(!wxFileExists(path)) return -1;
+    //Getting file size
+    wxULongLong result = wxFileName::GetSize(path);
     //If everything is OK
-    return result.GetValue();
+    if(result!=wxInvalidSize) return result.GetValue();
+    //Otherwise
+    return -1;
 }
 
 bool SmartRemove(wxString & path, bool shred)
@@ -612,11 +608,11 @@ void RandTempName(wxString & temp_name)
 /* UI-based functions */
 void EntangleDialog::UpdateTasks() //TODO: Simplify!
 {
-    GenericDirCtrl1->GetPaths(tasks);
-    wxString chosen = ToString(tasks.size());
+    GenericDirCtrl1->GetPaths(UI_files);
+    wxString chosen = ToString(UI_files.size());
     wxString dropped = ToString(drop_files.size());
     TasksSelected = true;
-    if(!tasks.empty()) //There are files chosen in usual way
+    if(!UI_files.empty()) //There are files chosen in usual way
     {
         if(!drop_files.empty()) //...and there are dropped ones
             SetText(1, _("Selected ")+chosen+_(", received ")+dropped);

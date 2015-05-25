@@ -10,7 +10,12 @@
 #ifndef ENTANGLE_EXTRAS_H
 #define ENTANGLE_EXTRAS_H
 
-#include <cryptopp/simple.h> //Some basic declarations
+#ifdef __WIN32__
+#include <simple.h> //Some basic declarations
+#else
+#include <cryptopp/simple.h>
+#endif
+
 #include <wx/dnd.h> //File drag & drop
 #include "EntangleMain.h"
 typedef unsigned char byte;
