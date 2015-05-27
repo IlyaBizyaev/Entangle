@@ -44,6 +44,10 @@ msgstr "Автор"
 msgid "Start"
 msgstr "Почати"
 
+#: EntangleMain.cpp:196
+msgid "Incorrect header size"
+msgstr "Невірний розмір заголовка"
+
 #: EntangleMain.cpp:227
 msgid "Simple and user-friendly application\nfor AES-based data encryption"
 msgstr "Простий і зручний додаток\nдля AES-шифрування даних"
