@@ -18,13 +18,16 @@ using namespace std;
 using namespace CryptoPP;
 
 /** Functions **/
+//Cryptography
+void DeriveKey(byte * key, wxString & password, byte * iv);
+void AddTail(EFile & target);
+unsigned int RandomNumber(int num_min, int num_max);
+void RandTempName(wxString & temp_name);
 //File functions
 unsigned long long GetFileSize(wxString & path);
 bool SmartRemove(wxString & path, bool shred = false);
-void RandTempName(wxString & temp_name);
 //Helper functions
-void DeriveKey(byte * key, wxString & password, byte * iv);
-unsigned int RandomNumber(int num_min, int num_max);
+bool CheckHeader(Header & header, wxString & filename);
 wxString ToString(int number);
 //For emergencies
 void AddError(wxString, wxString);
@@ -130,7 +133,6 @@ EntangleDialog::~EntangleDialog()
 /* Main function */
 void EntangleDialog::Process(size_t task_index, wxString & password)
 {
-    wxASSERT(Total!=0);
     //Preparing name for temp file
     wxString name = tasks[task_index];
     size_t cut = name.find_last_of(wxFILE_SEP_PATH)+1;
@@ -163,10 +165,11 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
     {
         /**DECRYPTION**/
         show_str = _("Decrypting ")+name.substr(cut, name.Length()-cut);
-        //Reserving space for IV, decrypted data and retrieved header
-        byte iv[16]; byte * Retrieved; Header DecryptedHeader;
         //Reading the IV
-        In.read(iv, 16);
+        byte iv[16];  In.read(iv, 16);
+        //Reserving space for retrieved header
+        Header DecryptedHeader;
+        //Deriving the key
         byte key[16]; DeriveKey(key, password, iv);
         try
         {
@@ -175,23 +178,26 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
             //Setting key and IV
             d.SetKeyWithIV(key, 16, iv, sizeof(iv));
             //Reserving space for header and MAC and reading them
-            byte blockky[64]; In.read(blockky, 64);
+            byte head_and_tag[64]; In.read(head_and_tag, 64);
             //Creating new Decryption filter
             AuthenticatedDecryptionFilter df(d, NULL,
                 AuthenticatedDecryptionFilter::MAC_AT_END |
                 AuthenticatedDecryptionFilter::THROW_EXCEPTION, TAG_SIZE);
             //Putting the decrypted header to the filter
-            df.ChannelPut("", (const byte*)&blockky, 64);
+            df.ChannelPut("", (const byte*)&head_and_tag, 64);
             // If the object throws, it most likely occurs here
             df.ChannelMessageEnd("");
 
             //Get data from channel
             df.SetRetrievalChannel("");
             size_t n = (size_t)df.MaxRetrievable();
-            Retrieved = new byte[n];
-
-            if(n > 0) { df.Get(Retrieved, n); }
-            memcpy(&DecryptedHeader, Retrieved, n);
+            if(n != sizeof(Header))
+            {
+                AddError(name, _("Incorrect header size"));
+                GoodFinish(In, Out, temp_path);
+                return;
+            }
+            df.Get((byte*)&DecryptedHeader, n);
         }
         catch(CryptoPP::InvalidArgument& e)
         {
@@ -214,14 +220,8 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
             return;
         }
         /** Comparing cores **/
-        if(DecryptedHeader.core_version!=ENTANGLE_CORE)
+        if(!CheckHeader(DecryptedHeader, name))
         {
-            int that_core = DecryptedHeader.core_version;
-            //The core is newer and the user needs an upgrade (^_^)
-            if(that_core > ENTANGLE_CORE)
-                AddError(name, _("Requires newer program version"));
-            else //The core is older, an outdated version is needed.
-                AddError(name, _("Was encrypted by older version"));
             GoodFinish(In, Out, temp_path);
             return;
         }
@@ -336,6 +336,7 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
             UpdateProgress();
         }
 
+        AddTail(Out);
     }
     /** <<<<<<< FINISHED MAIN PART >>>>>>> **/
     In.close(); Out.close();
@@ -449,6 +450,67 @@ void EntangleDialog::OnAbout(wxCommandEvent& WXUNUSED(event))
     aboutInfo.SetWebSite("http://entangle.ucoz.net");
     wxAboutBox(aboutInfo, this);
     wxTheApp->SafeYield(NULL, false);
+}
+
+/* Cryptography */
+void AddTail(EFile & target)
+{
+    /** Adding random 'tail' **/
+    int tail_size = RandomNumber(1, 50);
+    byte * tail = new byte[tail_size];
+    rnd.GenerateBlock(tail, tail_size);
+    target.write(tail, tail_size);
+    delete[] tail;
+}
+void RandTempName(wxString & temp_name)
+{
+    wxString new_temp_name;
+    do //While such file exists
+    {
+        //Random filename length (1 - 20):
+        int length = RandomNumber(1, 20), range = 0;
+        //Creating new char buffer for the filename
+        char * filename = new char[length+1];
+        //Filling the array (a-z, A-Z, 0-9):
+        for(int i=0; i<length; ++i)
+        {
+            range = RandomNumber(1, 3);
+            if(range==1) //Number (0-9):
+                filename[i] = RandomNumber(48, 57);
+            else if(range==2) //Capital letter (A-Z):
+                filename[i] = RandomNumber(65, 90);
+            else if(range==3) //Small letter (a-z):
+                filename[i] = RandomNumber(97, 122);
+        }
+        //Writing zero character at the end
+        filename[length] = '\0';
+        //Building the full path
+        new_temp_name = temp_name + wxString(filename);
+    } while(wxFileExists(new_temp_name));
+    //Returning filename and finishing
+    temp_name = new_temp_name;
+    return;
+}
+
+void DeriveKey(byte * key, wxString & password, byte * iv)
+{
+    /** Deriving a key from password **/
+    //Convert password to UTF-8
+    wxCharBuffer cbuff = password.mb_str(wxMBConvUTF8());
+    //Copy UTF-8 data to a byte array
+    byte * bpass = new byte[cbuff.length()];
+    memcpy((void*)bpass, (void*)cbuff.data(), cbuff.length());
+    //Derive the key
+    PKCS5_PBKDF2_HMAC<SHA512> KeyDeriver;
+    KeyDeriver.DeriveKey(key, 16, (byte)0, bpass, cbuff.length(), iv, 16, 1);
+}
+
+unsigned int RandomNumber(int num_min, int num_max)
+{
+    unsigned int result; byte * p_num = (byte*)&result;
+    rnd.GenerateBlock(p_num, sizeof(int));
+    result = result % (num_max-num_min+1) + num_min;
+    return result;
 }
 
 /* File functions */
@@ -575,36 +637,6 @@ bool SmartRemove(wxString & path, bool shred)
     return false;
 }
 
-void RandTempName(wxString & temp_name)
-{
-    wxString new_temp_name;
-    do //While such file exists
-    {
-        //Random filename length (1 - 20):
-        int length = RandomNumber(1, 20), range = 0;
-        //Creating new char buffer for the filename
-        char * filename = new char[length+1];
-        //Filling the array (a-z, A-Z, 0-9):
-        for(int i=0; i<length; ++i)
-        {
-            range = RandomNumber(1, 3);
-            if(range==1) //Number (0-9):
-                filename[i] = RandomNumber(48, 57);
-            else if(range==2) //Capital letter (A-Z):
-                filename[i] = RandomNumber(65, 90);
-            else if(range==3) //Small letter (a-z):
-                filename[i] = RandomNumber(97, 122);
-        }
-        //Writing zero character at the end
-        filename[length] = '\0';
-        //Building the full path
-        new_temp_name = temp_name + wxString(filename);
-    } while(wxFileExists(new_temp_name));
-    //Returning filename and finishing
-    temp_name = new_temp_name;
-    return;
-}
-
 /* UI-based functions */
 void EntangleDialog::UpdateTasks() //TODO: Simplify!
 {
@@ -655,25 +687,20 @@ void EntangleDialog::SetText(int line, wxString message)
 }
 
 /* Helper functions */
-void DeriveKey(byte * key, wxString & password, byte * iv)
+bool CheckHeader(Header & header, wxString & filename)
 {
-    /** Deriving a key from password **/
-    //Convert password to UTF-8
-    wxCharBuffer cbuff = password.mb_str(wxMBConvUTF8());
-    //Copy UTF-8 data to a byte array
-    byte * bpass = new byte[cbuff.length()];
-    memcpy((void*)bpass, (void*)cbuff.data(), cbuff.length());
-    //Derive the key
-    PKCS5_PBKDF2_HMAC<SHA512> KeyDeriver;
-    KeyDeriver.DeriveKey(key, 16, (byte)0, bpass, cbuff.length(), iv, 16, 1);
-}
-
-unsigned int RandomNumber(int num_min, int num_max)
-{
-    unsigned int result; byte * p_num = (byte*)&result;
-    rnd.GenerateBlock(p_num, sizeof(int));
-    result = result % (num_max-num_min+1) + num_min;
-    return result;
+    if(header.core_version!=ENTANGLE_CORE)
+    {
+        int that_core = header.core_version;
+        //The core is newer and the user needs an upgrade (^_^)
+        if(that_core > ENTANGLE_CORE)
+            AddError(filename, _("Requires newer program version"));
+        else //The core is older, an outdated version is needed.
+            AddError(filename, _("Was encrypted by older version"));
+        return false;
+    }
+    else
+        return true;
 }
 
 wxString ToString(int number)
@@ -682,11 +709,11 @@ wxString ToString(int number)
 }
 
 /* For emergencies */
-void AddError(wxString fname, wxString code)
+void AddError(wxString filename, wxString message)
 {
     //Producing a human-readable output
     //and pushing the result to the main list.
-    wxLogError(fname+" ("+code+")");
+    wxLogError(filename+" ("+message+")");
     WentWrong = true;
 }
 
