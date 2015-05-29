@@ -171,6 +171,8 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
         Header DecryptedHeader;
         //Deriving the key
         byte key[16]; DeriveKey(key, password, iv);
+        //If something goes wrong, this line gets error text.
+        wxString error_text;
         try
         {
             //New AES Decryption object
@@ -201,24 +203,31 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
         }
         catch(CryptoPP::InvalidArgument& e)
         {
-            AddError(name, "INV_ARGUMENT");
-            GoodFinish(In, Out, temp_path);
-            return;
+            error_text = "INV_ARGUMENT";
         }
         catch(CryptoPP::AuthenticatedSymmetricCipher::BadState& e)
         {
             // Pushing PDATA before ADATA results in:
-            AddError(name, "BAD_STATE");
-            GoodFinish(In, Out, temp_path);
-            return;
+            error_text = "BAD_STATE";
         }
         catch(CryptoPP::HashVerificationFilter::HashVerificationFailed& e)
         {
             //Caught HashVerificationFailed
-            AddError(name, _("Invalid password or mode"));
+            error_text = _("Invalid password or mode");
+        }
+        catch(...)
+        {
+            //Unknown exception
+            error_text = _("Unknown exception");
+        }
+
+        if(!error_text.empty())
+        {
+            AddError(name, error_text);
             GoodFinish(In, Out, temp_path);
             return;
         }
+
         /** Comparing cores **/
         if(!CheckHeader(DecryptedHeader, name))
         {
@@ -273,6 +282,7 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
         /** Header is now ready for saving! **/
 
         /** Encrypting and writing the header! **/
+        wxString error_text;
         try
         {
             //New AES Encryption object
@@ -294,20 +304,26 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
         catch(CryptoPP::BufferedTransformation::NoChannelSupport& e)
         {
             // The tag must go in to the default channel
-            AddError(name, "NO_CH_SUPPORT");
-            GoodFinish(In, Out, temp_path);
-            return;
+            error_text = "NO_CH_SUPPORT";
         }
         catch(CryptoPP::AuthenticatedSymmetricCipher::BadState& e)
         {
             // TODO: Get more info about this.
-            AddError(name, "BAD_STATE");
-            GoodFinish(In, Out, temp_path);
-            return;
+            error_text = "BAD_STATE";
         }
         catch(CryptoPP::InvalidArgument& e)
         {
-            AddError(name, "INV_ARGUMENT");
+            error_text = "INVALID_ARGUMENT";
+        }
+        catch(...)
+        {
+            //Unknown exception
+            error_text = _("Unknown exception");
+        }
+
+        if(!error_text.empty())
+        {
+            AddError(name, error_text);
             GoodFinish(In, Out, temp_path);
             return;
         }

@@ -103,6 +103,10 @@ msgstr "Не могу открыть входной файл"
 msgid "Cannot create an output file"
 msgstr "Не могу открыть результир. файл"
 
+#: EntangleMain.cpp:359
+msgid "Unknown exception"
+msgstr "Неизвестное исключение"
+
 #: EntangleMain.cpp:367
 msgid "Decrypting "
 msgstr "Дешифрую "
