@@ -11,6 +11,20 @@
 #include "EntangleApp.h"
 using namespace std;
 
+/* Header's constructor */
+Header::Header(unsigned long long fsize)
+{
+    //Clean the header
+    memset(this, 0x00, sizeof(Header));
+    //Set the file size
+    file_size = fsize;
+    //Write the version of my lovely program \(^_^)/
+    core_version = ENTANGLE_CORE;
+    //Generate random keys
+    AutoSeededRandomPool rnd;
+    rnd.GenerateBlock(keys, 32);
+}
+
 /* DroppedFilesReceiver's methods */
 //Constructor;
 DroppedFilesReciever::DroppedFilesReciever(EntangleDialog * g_dialog) { dialog = g_dialog; }
@@ -26,60 +40,55 @@ bool DroppedFilesReciever::OnDropFiles(wxCoord x, wxCoord y, const wxArrayString
 }
 
 
-/* EntangleSink's methods */
-//Constructor (accepts pointer to an array and to size_t variable)
-EntangleSink::EntangleSink(byte ** g_output, size_t & g_size) : output(g_output), out_size(g_size) { Clean(); }
-
-//Destructor
-EntangleSink::~EntangleSink() { Clean(); }
-
-// Function which accepts data from AES/GCM and puts to the linked array
+/* EntangleSink's Put2() method */
+//Function which accepts data from AES/GCM and writes to the file
 size_t EntangleSink::Put2(const byte *inString, size_t length, int, bool)
 {
 	if(!inString || !length) return length;
-	//Reallocating the array
-	*output = (byte*)realloc(*output, out_size+length);
-	//Adding new data
-	byte * WhereToJoin = *output + out_size;
-	memcpy(WhereToJoin, inString, length);
-	//Updating the size
-	out_size+=length;
+	//Writing the data
+	output.write(inString, length);
 	return 0;
 }
 
-// Clean(): deallocates the array and resets the out_size variable.
-void EntangleSink::Clean()
-{
-	if(*output!=NULL)
-	{
-	    free(*output);
-	    *output = NULL;
-	}
-	out_size=0;
-}
+/* BinFile wrapper's methods */
 
-
-/* EFile wrapper's methods */
 //Constructor
-EFile::EFile() { IsOk = false; }
+BinFile::BinFile() { IsOk = false; }
 
 //Constructor (accepts name and open mode, calls open()
-EFile::EFile(wxString filename, ios_base::openmode file_mode)
-{ open(filename, file_mode); }
+BinFile::BinFile(wxString & filename, ios_base::openmode file_mode)
+{
+    open(filename, file_mode | ios_base::binary);
+}
 
 //Destructor, calls close()
-EFile::~EFile() { close(); }
+BinFile::~BinFile() { close(); }
+
+wxString BinFile::GetName() { return name; }
 
 //Opens the file and checks for success
-void EFile::open(wxString filename, ios_base::openmode file_mode)
+void BinFile::open(wxString & filename, ios_base::openmode file_mode)
 {
     cfile.open(filename, file_mode);
     if(!cfile.is_open()) { IsOk = false; return; }
     name = filename; mode = file_mode; IsOk = true;
 }
 
+bool BinFile::seek_start()
+{
+    try
+    {
+        cfile.seekp(0, ios::beg);
+    }
+    catch(ios_base::failure & except)
+    {
+        return false;
+    }
+    return true;
+}
+
 //Reads data from the file
-bool EFile::read(byte* data, int size)
+bool BinFile::read(byte* data, int size)
 {
     if(!(mode & ios_base::in)) return false;
     cfile.read((char*)data, size);
@@ -87,15 +96,23 @@ bool EFile::read(byte* data, int size)
 }
 
 //Writes data to the file
-bool EFile::write(const byte* data, int size)
+bool BinFile::write(const byte* data, int size, bool flush)
 {
     if(!(mode & ios_base::out)) return false;
-    cfile.write(reinterpret_cast<const char*>(data), size);
+    try
+    {
+        cfile.write(reinterpret_cast<const char*>(data), size);
+        if(flush) cfile.flush();
+    }
+    catch(ios_base::failure & except)
+    {
+        return false;
+    }
     return true;
 }
 
 //Checks the status
-bool EFile::is_open() { return IsOk; }
+bool BinFile::is_open() { return IsOk; }
 
 //Closes the file
-void EFile::close() { cfile.close(); }
+void BinFile::close() { cfile.close(); }

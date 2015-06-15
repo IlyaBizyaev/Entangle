@@ -1,11 +1,11 @@
-#!/bin/bash
 CC=g++
 PO_FILES = ./lang/ru_RU.po ./lang/de_DE.po ./lang/uk_UK.po
 ### DEFINITIONS ###
 ifeq ($(OS),Windows_NT)
 # FOR WINDOWS
 WXDIR=C:\wxWidgets-3.0.2
-CRYPTDIR='C:\cryptopp562\'
+# Where the cryptopp dir is located 
+CRYPTDIR='C:\'
 CFLAGS=-Wall -pipe -mthreads -D__GNUWIN32__ -D__WXMSW__ -DwxUSE_UNICODE -O2 -I$(WXDIR)\include -I$(CRYPTDIR) -I$(WXDIR)\lib\gcc_lib\mswu -I./inc/ -c
 LIBS=-lwxmsw30u_core -lwxbase30u -lwxmsw30u_adv -lwxpng -lwxjpeg -lwxtiff -lwxzlib -lkernel32 -lgdi32 -lwinspool -lcomdlg32 -lshell32 -lole32 -loleaut32 -luuid -lcomctl32
 else
@@ -28,7 +28,8 @@ else
 # LINUX BUILD
 	$(CC) -o Entangle EntangleApp.o EntangleMain.o EntangleExtras.o -s -pthread -lwx_gtk2u_core-3.0 -lwx_baseu-3.0  -lwx_gtk2u_adv-3.0 -lcryptopp
 endif
-.PHONY: i18n
+
+.PHONY: i18n install uninstall clean
 i18n:
 	@for file in ./lang/*/Entangle.po; do\
 		msgfmt $$file -o "$${file%po}mo"; \

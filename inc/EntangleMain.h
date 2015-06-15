@@ -21,10 +21,6 @@
 #include <wx/textctrl.h>
 //*)
 
-#include <fstream>
-using std::ios_base;
-using std::fstream;
-
 
 class EntangleDialog: public wxDialog
 {

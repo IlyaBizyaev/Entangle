@@ -1,4 +1,4 @@
-# Entangle
+# Entangle v. 0.9
 ![Entangle Logo](http://entangle.ucoz.net/text_logo.png)
 
 ![Windows](http://entangle.ucoz.net/Windows_screenshot.png)
@@ -42,6 +42,6 @@ Please notify me if you want to use this code in any projects.
 
 ...**Jean-Pierre Münch**, **Jeffrey Walton** and **Mobile Mouse** for help with the encryption.
 
-...**RostakaGmfun** for a better Linux makefile.
+...**RostakaGmfun** for improving the Makefile and Ukrainian translation.
 ## Copyright
 Copyright (C) Ilya Bizyaev <bizyaev@lyceum62.ru>, 2015.

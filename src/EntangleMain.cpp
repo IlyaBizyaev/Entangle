@@ -7,40 +7,55 @@
  * License:   GNU GPL v3
  **************************************************************/
 
+/** ------------ Include files ------------ **/
 #include "EntangleMain.h"
 #include "EntangleApp.h"
 #include "EntangleExtras.h"
-#include "EntangleDepends.h"
+
+#include <memory>               //Memory copying
+#include <wx/filename.h>        //File existence and permissions
+#include <wx/dir.h>
+#include <wx/aboutdlg.h>
+#include <wx/msgdlg.h>
+
+#include <cryptopp/cryptlib.h>  //TODO: check if needed
+#include <cryptopp/aes.h>       //AES algorithm
+#include <cryptopp/osrng.h>     //Random generator
+#include <cryptopp/gcm.h>       //AES/GCM mode
+#include <cryptopp/pwdbased.h>  //Key derivation from password
+#include <cryptopp/sha.h>       //SHA-512 hash function
+/** --------------------------------------- **/
+
 #define BUF_SIZE 16384
 #define TAG_SIZE 16
-#define ENTANGLE_CORE 2
 using namespace std;
 using namespace CryptoPP;
 
-/** Functions **/
+/** --------- Functions --------- **/
 //Cryptography
 void DeriveKey(byte * key, wxString & password, byte * iv);
-void AddTail(EFile & target);
+void AddTail(BinFile & target);
 unsigned int RandomNumber(int num_min, int num_max);
 void RandTempName(wxString & temp_name);
 //File functions
 unsigned long long GetFileSize(wxString & path);
-bool SmartRemove(wxString & path, bool shred = false);
+bool SmartRemove(wxString & path);
+bool Shred(wxString & path);
 //Helper functions
 bool CheckHeader(Header & header, wxString & filename);
 wxString ToString(int number);
 //For emergencies
 void AddError(wxString, wxString);
-void GoodFinish(EFile&, EFile&, wxString&);
+void GoodFinish(BinFile&, BinFile&);
 
-/** Global variables **/
+/** --------- Global variables --------- **/
 int NumFiles=0, ShowProgress=0;
 unsigned long long Total=0, NumBytes=0;
 bool TasksSelected = false, PasswordTypedIn = false, ShouldDecrypt = false, WentWrong = false;
 
 unsigned long long ULL_MAX = -1;
 
-/** Global objects **/
+/** --------- Global objects --------- **/
 //String which is displayed in ProgressDialog()
 wxString show_str = _("Starting...");
 //Random data generator
@@ -139,11 +154,10 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
     wxString temp_path = name.substr(0, cut);
     RandTempName(temp_path);
     //Required variables
-    unsigned long fsize, checker, dleft;
+    unsigned long long fsize, checker, dleft;
     /** Opening files **/
-    EFile In, Out;
     //Opening original file
-    In.open(name, ios_base::in|ios_base::binary);
+    BinFile In(name, ios_base::in);
     if(!In.is_open())
     {
         //Can't open the input file
@@ -151,11 +165,11 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
         return;
     }
     //Opening the temp file
-    Out.open(temp_path, ios_base::out|ios_base::trunc|ios_base::binary);
+    BinFile Out(temp_path, ios_base::out|ios_base::trunc);
     if(!Out.is_open())
     {
         //Can't open the output file
-        GoodFinish(In, Out, temp_path);
+        GoodFinish(In, Out);
         AddError(name, _("Cannot create an output file"));
         return;
     }
@@ -163,7 +177,7 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
 
     if(ShouldDecrypt)
     {
-        /**DECRYPTION**/
+        /** DECRYPTION **/
         show_str = _("Decrypting ")+name.substr(cut, name.Length()-cut);
         //Reading the IV
         byte iv[16];  In.read(iv, 16);
@@ -172,9 +186,10 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
         //Deriving the key
         byte key[16]; DeriveKey(key, password, iv);
         //If something goes wrong, this line gets error text.
-        wxString error_text;
+        wxString error_text; bool GoodHeader = false;
         try
         {
+            /** ----- Working with header ----- **/
             //New AES Decryption object
             GCM<AES>::Decryption d;
             //Setting key and IV
@@ -187,7 +202,7 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
                 AuthenticatedDecryptionFilter::THROW_EXCEPTION, TAG_SIZE);
             //Putting the decrypted header to the filter
             df.ChannelPut("", (const byte*)&head_and_tag, 64);
-            // If the object throws, it most likely occurs here
+            //If the object throws, it most likely occurs here
             df.ChannelMessageEnd("");
 
             //Get data from channel
@@ -196,24 +211,72 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
             if(n != sizeof(Header))
             {
                 AddError(name, _("Incorrect header size"));
-                GoodFinish(In, Out, temp_path);
+                GoodFinish(In, Out);
                 return;
             }
             df.Get((byte*)&DecryptedHeader, n);
+
+            /** Comparing cores **/
+            if(CheckHeader(DecryptedHeader, name))
+                GoodHeader = true;
+            else
+            {
+                GoodFinish(In, Out);
+                return;
+            }
+
+            /** ----- Decrypting the very file ----- **/
+            GCM<AES>::Decryption gcmDecrypt;
+            gcmDecrypt.SetKeyWithIV(DecryptedHeader.keys, 32, iv);
+
+            AuthenticatedDecryptionFilter gcm_f(gcmDecrypt,
+                new EntangleSink(Out),
+                AuthenticatedDecryptionFilter::MAC_AT_END |
+                AuthenticatedDecryptionFilter::THROW_EXCEPTION, TAG_SIZE);
+
+
+            byte transfer[BUF_SIZE];
+            fsize = DecryptedHeader.file_size;
+            dleft = fsize % BUF_SIZE;
+            checker = fsize - dleft;
+
+            //THE VERY PROCESS
+            for(unsigned long i=0; i<checker; i+=BUF_SIZE)
+            {
+                In.read(transfer, BUF_SIZE);
+                gcm_f.ChannelPut("", transfer, BUF_SIZE);
+                NumBytes+=BUF_SIZE;
+                UpdateProgress();
+            }
+            if(dleft!=0)
+            {
+                In.read(transfer, dleft);
+                gcm_f.ChannelPut("", transfer, dleft);
+                NumBytes+=dleft;
+                UpdateProgress();
+            }
+
+            In.read(transfer, TAG_SIZE);
+            gcm_f.ChannelPut("", transfer, TAG_SIZE);
+
+            gcm_f.MessageEnd();
+
         }
         catch(CryptoPP::InvalidArgument& e)
         {
-            error_text = "INV_ARGUMENT";
+            error_text = wxString("INV_ARGUMENT: ") + e.what();
         }
         catch(CryptoPP::AuthenticatedSymmetricCipher::BadState& e)
         {
-            // Pushing PDATA before ADATA results in:
-            error_text = "BAD_STATE";
+            error_text = wxString("BAD_STATE:") + e.what();
         }
         catch(CryptoPP::HashVerificationFilter::HashVerificationFailed& e)
         {
             //Caught HashVerificationFailed
-            error_text = _("Invalid password or mode");
+            if(GoodHeader)
+                error_text = _("Invalid password or mode");
+            else
+                error_text = _("The file is corrupted");
         }
         catch(...)
         {
@@ -224,36 +287,8 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
         if(!error_text.empty())
         {
             AddError(name, error_text);
-            GoodFinish(In, Out, temp_path);
+            GoodFinish(In, Out);
             return;
-        }
-
-        /** Comparing cores **/
-        if(!CheckHeader(DecryptedHeader, name))
-        {
-            GoodFinish(In, Out, temp_path);
-            return;
-        }
-        /** CFB Mode Processing **/
-        CFB_Mode<AES>::Decryption cfbDecryption(DecryptedHeader.keys, 32, iv);
-        byte transfer[BUF_SIZE];
-        fsize = DecryptedHeader.file_size; dleft = fsize%BUF_SIZE;
-        checker = fsize-dleft;
-        for(unsigned long i=0; i<checker; i+=BUF_SIZE)
-        {
-            In.read(transfer, BUF_SIZE);
-            cfbDecryption.ProcessData((byte*)&transfer, (byte*)&transfer, BUF_SIZE);
-            Out.write(transfer, BUF_SIZE);
-            NumBytes+=BUF_SIZE;
-            UpdateProgress();
-        }
-        if(dleft!=0)
-        {
-            In.read(transfer, dleft);
-            cfbDecryption.ProcessData((byte*)&transfer, (byte*)&transfer, dleft);
-            Out.write(transfer, dleft);
-            NumBytes+=dleft;
-            UpdateProgress();
         }
 
     }
@@ -262,26 +297,15 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
         /** ENCRYPTION **/
         show_str = _("Encrypting ")+name.substr(cut, name.Length()-cut);
         //Creating, generating and writing the IV
-        byte iv[16]; rnd.GenerateBlock(iv, sizeof(iv));
-        Out.write(iv, 16);
+        byte iv[16]; rnd.GenerateBlock(iv, sizeof(iv)); Out.write(iv, 16);
         //Deriving the key
-        byte key[16]; DeriveKey(key, password, iv);
+        byte key[16]; DeriveKey(key, password, iv); //TODO: Make key a return value
         //Getting file size
         fsize = file_sizes[task_index];
+        //Creating the Entangle header
+        Header MakeHeader(fsize);
 
-        /** Preparing the Entangle Header **/
-        //Creating and cleaning
-        Header MakeHeader; memset(&MakeHeader, 0x00, sizeof(MakeHeader));
-        //Writing the file size
-        MakeHeader.file_size = fsize;
-        //Writing the version of my lovely program \_(^_^)_/
-        MakeHeader.core_version = ENTANGLE_CORE;
-        //Creating, generating and copying file encryption keys
-        byte file_keys[32]; rnd.GenerateBlock(file_keys, 32);
-        memcpy(MakeHeader.keys, file_keys, 32);
-        /** Header is now ready for saving! **/
-
-        /** Encrypting and writing the header! **/
+        /** Encrypting and writing the header **/
         wxString error_text;
         try
         {
@@ -289,17 +313,12 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
             GCM<AES>::Encryption e;
             //Setting user key and random IV
             e.SetKeyWithIV(key, 16, iv, sizeof(iv));
-            //Preparing storage for results
-            byte * Received = NULL;
-            size_t GotSize = 0;
             //Filter with an EntangleSink
             AuthenticatedEncryptionFilter ef(e,
-            new EntangleSink(&Received, GotSize), false, TAG_SIZE);
+            new EntangleSink(Out), false, TAG_SIZE);
             //Encrypting MakeHeader
             ef.ChannelPut("", (const byte*)&MakeHeader, sizeof(MakeHeader));
             ef.ChannelMessageEnd("");
-            //Writing encrypted data
-            Out.write(Received, GotSize);
         }
         catch(CryptoPP::BufferedTransformation::NoChannelSupport& e)
         {
@@ -324,42 +343,46 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
         if(!error_text.empty())
         {
             AddError(name, error_text);
-            GoodFinish(In, Out, temp_path);
+            GoodFinish(In, Out);
             return;
         }
 
-        /** CFB Mode Processing **/
-        //Create Encryption
-        CFB_Mode<AES>::Encryption cfbEncryption(file_keys, 32, iv);
+        /** ENCRYPTING THE VERY FILE **/
+        GCM<AES>::Encryption gcmEncrypt;
+        gcmEncrypt.SetKeyWithIV(MakeHeader.keys, 32, iv);
+
+        AuthenticatedEncryptionFilter gcm_f(gcmEncrypt,
+        new EntangleSink(Out), false, TAG_SIZE);
+
         byte transfer[BUF_SIZE];
         dleft = fsize%BUF_SIZE;
         checker = fsize-dleft;
+
         //THE VERY PROCESS
         for(unsigned long i=0; i<checker; i+=BUF_SIZE)
         {
             In.read(transfer, BUF_SIZE);
-            cfbEncryption.ProcessData((byte*)&transfer, (byte*)&transfer, BUF_SIZE);
-            Out.write(transfer, BUF_SIZE);
+            gcm_f.ChannelPut("", transfer, BUF_SIZE);
             NumBytes+=BUF_SIZE;
             UpdateProgress();
         }
         if(dleft!=0)
         {
             In.read(transfer, dleft);
-            cfbEncryption.ProcessData((byte*)&transfer, (byte*)&transfer, dleft);
-            Out.write(transfer, dleft);
+            gcm_f.ChannelPut("", transfer, dleft);
             NumBytes+=dleft;
             UpdateProgress();
         }
+
+        gcm_f.MessageEnd();
 
         AddTail(Out);
     }
     /** <<<<<<< FINISHED MAIN PART >>>>>>> **/
     In.close(); Out.close();
-    if(!ShouldDecrypt)
-        SmartRemove(name, true);
-    else
-        SmartRemove(name);
+
+    if(!ShouldDecrypt) Shred(name);
+    SmartRemove(name);
     if(!wxRenameFile(temp_path, name))
     {
         //If can`t rename
@@ -415,7 +438,14 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& WXUNUSED(event))
         WentWrong = false;
     }
     else
-        SetText(2, _("Complete (")+ToString(NumFiles)+_(" file(s))"));
+    {
+        wxString text;
+        if(ShouldDecrypt)
+            text = wxString::Format(wxPLURAL("Decrypted %i file", "Decrypted %i files", NumFiles), NumFiles);
+        else
+            text = wxString::Format(wxPLURAL("Encrypted %i file", "Encrypted %i files", NumFiles), NumFiles);
+        wxMessageBox(text, _("Done!")); SetText(2, _("Done!"));
+    }
     //Cleaning up
     CleanUp();
 }
@@ -440,7 +470,7 @@ void EntangleDialog::OnPasswordChange(wxCommandEvent& WXUNUSED(event))
     wxString wxpassword = TextCtrl1->GetLineText(0);
     int length = wxpassword.length();
     PasswordTypedIn = true;
-    if(length == 0)
+    if(!length)
     {
         SetText(2, _("Enter the password:"));
         PasswordTypedIn = false;
@@ -469,7 +499,7 @@ void EntangleDialog::OnAbout(wxCommandEvent& WXUNUSED(event))
 }
 
 /* Cryptography */
-void AddTail(EFile & target)
+void AddTail(BinFile & target)
 {
     /** Adding random 'tail' **/
     int tail_size = RandomNumber(1, 50);
@@ -484,13 +514,13 @@ void RandTempName(wxString & temp_name)
     do //While such file exists
     {
         //Random filename length (1 - 20):
-        int length = RandomNumber(1, 20), range = 0;
+        int length = RandomNumber(1, 20);
         //Creating new char buffer for the filename
         char * filename = new char[length+1];
         //Filling the array (a-z, A-Z, 0-9):
         for(int i=0; i<length; ++i)
         {
-            range = RandomNumber(1, 3);
+            int range = RandomNumber(1, 3);
             if(range==1) //Number (0-9):
                 filename[i] = RandomNumber(48, 57);
             else if(range==2) //Capital letter (A-Z):
@@ -523,8 +553,8 @@ void DeriveKey(byte * key, wxString & password, byte * iv)
 
 unsigned int RandomNumber(int num_min, int num_max)
 {
-    unsigned int result; byte * p_num = (byte*)&result;
-    rnd.GenerateBlock(p_num, sizeof(int));
+    unsigned int result;
+    rnd.GenerateBlock((byte*)&result, sizeof(unsigned int));
     result = result % (num_max-num_min+1) + num_min;
     return result;
 }
@@ -587,6 +617,7 @@ void EntangleDialog::CleanUp()
     delete[] file_sizes;
     //If only dropped files were processed, no tasks are now selected.
     if(UI_files.empty()) TasksSelected = false;
+    UpdateTasks();
 }
 
 unsigned long long GetFileSize(wxString & path)
@@ -602,7 +633,7 @@ unsigned long long GetFileSize(wxString & path)
     return -1;
 }
 
-bool SmartRemove(wxString & path, bool shred)
+bool SmartRemove(wxString & path)
 {
     //If there is already no such file, terminate.
     if(!wxFileExists(path)) return true;
@@ -614,69 +645,70 @@ bool SmartRemove(wxString & path, bool shred)
         int permissions = wxS_IRUSR | wxS_IWUSR;
         fname.SetPermissions(permissions);
     }
-
-    if(shred) /* If overwriting is required */
-    {
-        fstream target;
-        //Getting file size
-        unsigned long long fsize = GetFileSize(path);
-        //Opening this file for writing
-        target.open(path, ios_base::out | ios_base::binary);
-        //Being paranoid
-        if(!target.is_open()) return false;
-        //Making some preparations
-        unsigned long long dleft, multiple;
-        dleft = fsize%BUF_SIZE; multiple = fsize-dleft;
-        char buffer[BUF_SIZE];
-        /**--------------------------------------------**/
-        for(int iteration = 0; iteration < 10; ++iteration)
-        {
-            //Generating random data to write
-            rnd.GenerateBlock((byte*)buffer, BUF_SIZE);
-            //Moving to the beginning
-            target.seekp(0, ios::beg);
-            //Overwriting the data
-            for(unsigned int i=0; i<multiple; i+=BUF_SIZE)
-                target.write(buffer, BUF_SIZE);
-            target.write(buffer, dleft);
-            //Ensure that the data was written, not cached
-            target.flush();
-        }
-        /**--------------------------------------------**/
-        //Closing the file
-        target.close();
-    }
-
     //Removing
     if(wxRemoveFile(path)) return true;
     //If fails, returning false.
     return false;
 }
 
-/* UI-based functions */
-void EntangleDialog::UpdateTasks() //TODO: Simplify!
+bool Shred(wxString & path)
 {
-    GenericDirCtrl1->GetPaths(UI_files);
-    wxString chosen = ToString(UI_files.size());
-    wxString dropped = ToString(drop_files.size());
-    TasksSelected = true;
-    if(!UI_files.empty()) //There are files chosen in usual way
+    //Getting file size
+    unsigned long long fsize = GetFileSize(path);
+    //Opening this file for writing
+    BinFile target(path, ios_base::out);
+    if(!target.is_open()) return false;
+    //Making some preparations
+    unsigned long long dleft, checker;
+    dleft = fsize%BUF_SIZE; checker = fsize-dleft;
+    byte buffer[BUF_SIZE];
+    /**--------------------------------------------**/
+    for(int iteration = 0; iteration < 10; ++iteration)
     {
-        if(!drop_files.empty()) //...and there are dropped ones
-            SetText(1, _("Selected ")+chosen+_(", received ")+dropped);
-        else //...and no dropped ones
-            SetText(1, _("Selected ")+chosen+_(" object(s)"));
+        //Generating random data to write
+        rnd.GenerateBlock((byte*)buffer, BUF_SIZE);
+        //Moving to the beginning
+        if(!target.seek_start()) return false;
+        //Overwriting the data
+        for(unsigned int i=0; i<checker; i+=BUF_SIZE)
+            target.write(buffer, BUF_SIZE);
+        //Ensure that the data was written, not cached
+        target.write(buffer, dleft, true);
     }
-    else //No files chosen in usual way
-    {
-        if(!drop_files.empty())  //...but there are dropped ones
-            SetText(1, _("Received ")+dropped+_(" object(s)"));
-        else  //...and no dropped ones
-        {
-            SetText(1, _("Choose files or folders:"));
-            TasksSelected = false;
-        }
-    }
+    /**--------------------------------------------**/
+    //Closing the file
+    target.close();
+    return true;
+}
+
+/* UI-based functions */
+void EntangleDialog::UpdateTasks()
+{
+    //Get paths from the file tree
+	GenericDirCtrl1->GetPaths(UI_files);
+
+	wxString first_half, second_half, result;
+	bool chosen = !UI_files.empty(), dropped = !drop_files.empty();
+
+	if(UI_files.empty()&&drop_files.empty())
+		TasksSelected = false;
+	else
+		TasksSelected = true;
+
+	if(chosen) first_half = wxString::Format(wxPLURAL("Selected %lu", "Selected %lu", UI_files.size()), UI_files.size());
+
+	if(dropped) second_half = wxString::Format(wxPLURAL("Received %lu", "Received %lu", drop_files.size()), drop_files.size());
+
+	if(chosen && !dropped)
+		result = first_half + wxPLURAL(" object", " objects", UI_files.size());
+	else if(dropped && !chosen)
+		result = second_half + wxPLURAL(" object", " objects", drop_files.size());
+	else if(chosen && dropped)
+		result = first_half + ", " + second_half.MakeLower();
+	else if(!chosen && !dropped)
+		result = _("Choose files or folders:");
+
+	SetText(1, result);
 }
 
 void EntangleDialog::AddDropped(wxArrayString filenames)
@@ -733,12 +765,13 @@ void AddError(wxString filename, wxString message)
     WentWrong = true;
 }
 
-void GoodFinish(EFile & In, EFile & Out, wxString & temp_path)
+void GoodFinish(BinFile & In, BinFile & Out)
 {
     //Checking whether any files are open.
     //If so, closing them.
     if(In.is_open()) In.close();
     if(Out.is_open()) Out.close();
     //Removing the temp file
-    SmartRemove(temp_path);
+    wxString temp_name = Out.GetName();
+    SmartRemove(temp_name);
 }

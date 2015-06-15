@@ -10,14 +10,16 @@
 #ifndef ENTANGLE_EXTRAS_H
 #define ENTANGLE_EXTRAS_H
 
-#ifdef __WIN32__
-#include <simple.h> //Some basic declarations
-#else
-#include <cryptopp/simple.h>
-#endif
+#include <fstream>              //File operations
+#include <wx/dnd.h>             //File drag & drop
+#include <cryptopp/simple.h>    //Basics of Crypto++
+#include <cryptopp/osrng.h>     //Random generator
 
-#include <wx/dnd.h> //File drag & drop
+
 #include "EntangleMain.h"
+
+#define ENTANGLE_CORE 3
+
 typedef unsigned char byte;
 using namespace std;
 using namespace CryptoPP;
@@ -27,6 +29,8 @@ using namespace CryptoPP;
 /* Header; written to encrypted files before main data */
 struct Header
 {
+    Header() {   }
+    Header(unsigned long long file_size);
     int core_version;                   /* Header format version */
     unsigned long long file_size;       /* Size of original file */
     byte keys[32];                      /* AES-256 key storage area */
@@ -44,39 +48,38 @@ private:
     EntangleDialog * dialog; //Pointer to the dialog, needed to refresh the StaticText
 };
 
-/* A sink class; implements data exchange between AES/GCM and C++ arrays */
-class EntangleSink : public Bufferless<Sink> /* Array-based sink class for GCM */
-{
-public:
-    //Constructor (accepts pointer to an array and to size_t variable)
-    EntangleSink(byte ** g_output, size_t & g_size);
-    //Destructor
-    ~EntangleSink();
-    // Function which accepts data from AES/GCM and puts to the linked array
-    size_t Put2(const byte *inString, size_t length, int, bool);
-    // Clean(): deallocates the array and resets the out_size variable.
-    void Clean();
-private:
-    byte ** output;     //Pointer to an array
-    size_t & out_size;  //Stores number of bytes in array
-};
-
 /* A simple wrapper for C++ file streams */
-class EFile
+class BinFile
 {
 public:
-    EFile();
-    void open(wxString filename, ios_base::openmode file_mode);
-    EFile(wxString filename, ios_base::openmode file_mode);
+    BinFile();
+    BinFile(wxString & filename, ios_base::openmode file_mode);
+    wxString GetName();
+    void open(wxString & filename, ios_base::openmode file_mode);
+    bool seek_start();
     bool read(byte* data, int size);
-    bool write(const byte* data, int size);
-    bool is_open(); void close(); ~EFile();
+    bool write(const byte* data, int size, bool flush = false);
+    bool is_open(); void close(); ~BinFile();
 
 private:
     fstream cfile;
     ios_base::openmode mode;
     wxString name;
     bool IsOk;
+};
+
+/* A sink class; writes data from a AES/GCM filter to a binary file */
+class EntangleSink : public Bufferless<Sink>
+{
+public:
+    //Constructor (accepts link to a BinFile object)
+    EntangleSink(BinFile & g_output) : output(g_output) {  }
+    //Destructor
+    ~EntangleSink() {  }
+    //Function which accepts data from AES/GCM and writes to the file
+    size_t Put2(const byte *inString, size_t length, int, bool);
+private:
+    BinFile & output;
 };
 
 #endif // ENTANGLE_EXTRAS_H
