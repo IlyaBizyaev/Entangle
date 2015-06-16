@@ -1,5 +1,4 @@
 CC=g++
-PO_FILES = ./lang/ru_RU.po ./lang/de_DE.po ./lang/uk_UK.po
 ### DEFINITIONS ###
 ifeq ($(OS),Windows_NT)
 # FOR WINDOWS
@@ -23,7 +22,7 @@ ifeq ($(OS),Windows_NT)
 # WINDOWS BUILD
 	windres.exe -I$(WXDIR)\include -I$(WXDIR)\lib\gcc_lib\mswu -J rc -O coff -i resource.rc -o resource.res
 
-	$(CC) -L$(WXDIR)\lib\gcc_lib -o Entangle.exe EntangleApp.o EntangleMain.o EntangleExtras.o resource.res -s -static-libgcc -static-libstdc++ -mthreads $(LIBS) $(CRYPTDIR)libcryptopp.a -mwindows
+	$(CC) -L$(WXDIR)\lib\gcc_lib -o Entangle.exe EntangleApp.o EntangleMain.o EntangleExtras.o resource.res -s -static-libgcc -static-libstdc++ -mthreads $(LIBS) $(CRYPTDIR)cryptopp\libcryptopp.a -mwindows
 else
 # LINUX BUILD
 	$(CC) -o Entangle EntangleApp.o EntangleMain.o EntangleExtras.o -s -pthread -lwx_gtk2u_core-3.0 -lwx_baseu-3.0  -lwx_gtk2u_adv-3.0 -lcryptopp
