@@ -20,7 +20,6 @@
 
 #include <cryptopp/cryptlib.h>  //TODO: check if needed
 #include <cryptopp/aes.h>       //AES algorithm
-#include <cryptopp/osrng.h>     //Random generator
 #include <cryptopp/gcm.h>       //AES/GCM mode
 #include <cryptopp/pwdbased.h>  //Key derivation from password
 #include <cryptopp/sha.h>       //SHA-512 hash function
@@ -35,8 +34,6 @@ using namespace CryptoPP;
 //Cryptography
 void DeriveKey(byte * key, wxString & password, byte * iv);
 void AddTail(BinFile & target);
-unsigned int RandomNumber(int num_min, int num_max);
-void RandTempName(wxString & temp_name);
 //File functions
 unsigned long long GetFileSize(wxString & path);
 bool SmartRemove(wxString & path);
@@ -58,8 +55,6 @@ unsigned long long ULL_MAX = -1;
 /** --------- Global objects --------- **/
 //String which is displayed in ProgressDialog()
 wxString show_str = _("Starting...");
-//Random data generator
-AutoSeededRandomPool rnd;
 
 //(*InternalHeaders(EntangleDialog)
 #include <wx/string.h>
@@ -152,7 +147,7 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
     wxString name = tasks[task_index];
     size_t cut = name.find_last_of(wxFILE_SEP_PATH)+1;
     wxString temp_path = name.substr(0, cut);
-    RandTempName(temp_path);
+    RandomGenerator rnd; rnd.RandTempName(temp_path);
     //Required variables
     unsigned long long fsize, checker, dleft;
     /** Opening files **/
@@ -297,7 +292,8 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
         /** ENCRYPTION **/
         show_str = _("Encrypting ")+name.substr(cut, name.Length()-cut);
         //Creating, generating and writing the IV
-        byte iv[16]; rnd.GenerateBlock(iv, sizeof(iv)); Out.write(iv, 16);
+        RandomGenerator rnd; byte iv[16];
+        rnd.GenerateBlock(iv, sizeof(iv)); Out.write(iv, 16);
         //Deriving the key
         byte key[16]; DeriveKey(key, password, iv); //TODO: Make key a return value
         //Getting file size
@@ -502,40 +498,12 @@ void EntangleDialog::OnAbout(wxCommandEvent& WXUNUSED(event))
 void AddTail(BinFile & target)
 {
     /** Adding random 'tail' **/
-    int tail_size = RandomNumber(1, 50);
+    RandomGenerator rnd;
+    int tail_size = rnd.RandomNumber(1, 50);
     byte * tail = new byte[tail_size];
     rnd.GenerateBlock(tail, tail_size);
     target.write(tail, tail_size);
     delete[] tail;
-}
-void RandTempName(wxString & temp_name)
-{
-    wxString new_temp_name;
-    do //While such file exists
-    {
-        //Random filename length (1 - 20):
-        int length = RandomNumber(1, 20);
-        //Creating new char buffer for the filename
-        char * filename = new char[length+1];
-        //Filling the array (a-z, A-Z, 0-9):
-        for(int i=0; i<length; ++i)
-        {
-            int range = RandomNumber(1, 3);
-            if(range==1) //Number (0-9):
-                filename[i] = RandomNumber(48, 57);
-            else if(range==2) //Capital letter (A-Z):
-                filename[i] = RandomNumber(65, 90);
-            else if(range==3) //Small letter (a-z):
-                filename[i] = RandomNumber(97, 122);
-        }
-        //Writing zero character at the end
-        filename[length] = '\0';
-        //Building the full path
-        new_temp_name = temp_name + wxString(filename);
-    } while(wxFileExists(new_temp_name));
-    //Returning filename and finishing
-    temp_name = new_temp_name;
-    return;
 }
 
 void DeriveKey(byte * key, wxString & password, byte * iv)
@@ -549,14 +517,7 @@ void DeriveKey(byte * key, wxString & password, byte * iv)
     //Derive the key
     PKCS5_PBKDF2_HMAC<SHA512> KeyDeriver;
     KeyDeriver.DeriveKey(key, 16, (byte)0, bpass, cbuff.length(), iv, 16, 1);
-}
-
-unsigned int RandomNumber(int num_min, int num_max)
-{
-    unsigned int result;
-    rnd.GenerateBlock((byte*)&result, sizeof(unsigned int));
-    result = result % (num_max-num_min+1) + num_min;
-    return result;
+    delete[] bpass;
 }
 
 /* File functions */
@@ -660,8 +621,9 @@ bool Shred(wxString & path)
     if(!target.is_open()) return false;
     //Making some preparations
     unsigned long long dleft, checker;
-    dleft = fsize%BUF_SIZE; checker = fsize-dleft;
+    dleft = fsize % BUF_SIZE; checker = fsize - dleft;
     byte buffer[BUF_SIZE];
+    RandomGenerator rnd;
     /**--------------------------------------------**/
     for(int iteration = 0; iteration < 10; ++iteration)
     {

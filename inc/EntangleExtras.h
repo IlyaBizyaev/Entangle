@@ -82,4 +82,20 @@ private:
     BinFile & output;
 };
 
+/* A simple class which provides access to a random pool */
+/* and implements its own methods, based on this RNG.    */
+class RandomGenerator
+{
+public:
+    //Crypto++ method's wrapper
+    void GenerateBlock(byte * output, size_t size);
+    //Generates a random number in the given range
+    unsigned int RandomNumber(int num_min, int num_max);
+    //Makes up a name for a temp file
+    void RandTempName(wxString & temp_name);
+private:
+    //System random generator
+    static AutoSeededRandomPool rnd;
+};
+
 #endif // ENTANGLE_EXTRAS_H

@@ -21,7 +21,7 @@ Header::Header(unsigned long long fsize)
     //Write the version of my lovely program \(^_^)/
     core_version = ENTANGLE_CORE;
     //Generate random keys
-    AutoSeededRandomPool rnd;
+    RandomGenerator rnd;
     rnd.GenerateBlock(keys, 32);
 }
 
@@ -116,3 +116,51 @@ bool BinFile::is_open() { return IsOk; }
 
 //Closes the file
 void BinFile::close() { cfile.close(); }
+
+/* RandomGenerator's methods */
+AutoSeededRandomPool RandomGenerator::rnd;
+
+void RandomGenerator::GenerateBlock(byte * output, size_t size)
+{
+    rnd.GenerateBlock(output, size);
+}
+
+unsigned int RandomGenerator::RandomNumber(int num_min, int num_max)
+{
+    unsigned int result;
+    GenerateBlock((byte*)&result, sizeof(unsigned int));
+    result = result % (num_max-num_min+1) + num_min;
+    return result;
+}
+
+void RandomGenerator::RandTempName(wxString & temp_name)
+{
+    wxString new_temp_name;
+    do //While such file exists
+    {
+        //Random filename length (1 - 20):
+        int length = RandomNumber(1, 20);
+        //Creating new char buffer for the filename
+        char * filename = new char[length+1];
+        //Filling the array (a-z, A-Z, 0-9):
+        for(int i=0; i<length; ++i)
+        {
+            int range = RandomNumber(1, 3);
+            if(range==1) //Number (0-9):
+                filename[i] = RandomNumber(48, 57);
+            else if(range==2) //Capital letter (A-Z):
+                filename[i] = RandomNumber(65, 90);
+            else if(range==3) //Small letter (a-z):
+                filename[i] = RandomNumber(97, 122);
+        }
+        //Writing zero character to the end
+        filename[length] = '\0';
+        //Building the full path
+        new_temp_name = temp_name + wxString(filename);
+        delete[] filename;
+    } while(wxFileExists(new_temp_name));
+    //Returning filename and finishing
+    temp_name = new_temp_name;
+    return;
+}
+

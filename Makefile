@@ -33,6 +33,12 @@ i18n:
 	@for file in ./lang/*/Entangle.po; do\
 		msgfmt $$file -o "$${file%po}mo"; \
 	done
+launch:
+ifeq ($(OS),Windows_NT)
+	./Entangle.exe
+else
+	./Entangle
+endif
 install:
 	install Entangle /usr/local/bin
 uninstall:
