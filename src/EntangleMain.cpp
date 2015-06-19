@@ -46,15 +46,10 @@ void AddError(wxString, wxString);
 void GoodFinish(BinFile&, BinFile&);
 
 /** --------- Global variables --------- **/
-int NumFiles=0, ShowProgress=0;
 unsigned long long Total=0, NumBytes=0;
 bool TasksSelected = false, PasswordTypedIn = false, ShouldDecrypt = false, WentWrong = false;
 
 unsigned long long ULL_MAX = -1;
-
-/** --------- Global objects --------- **/
-//String which is displayed in ProgressDialog()
-wxString show_str = _("Starting...");
 
 //(*InternalHeaders(EntangleDialog)
 #include <wx/string.h>
@@ -150,6 +145,7 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
     RandomGenerator rnd; rnd.RandTempName(temp_path);
     //Required variables
     unsigned long long fsize, checker, dleft;
+    static wxString show_str;
     /** Opening files **/
     //Opening original file
     BinFile In(name, ios_base::in);
@@ -174,6 +170,7 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
     {
         /** DECRYPTION **/
         show_str = _("Decrypting ")+name.substr(cut, name.Length()-cut);
+        UpdateProgress(show_str);
         //Reading the IV
         byte iv[16];  In.read(iv, 16);
         //Reserving space for retrieved header
@@ -291,6 +288,7 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
     {
         /** ENCRYPTION **/
         show_str = _("Encrypting ")+name.substr(cut, name.Length()-cut);
+        UpdateProgress(show_str);
         //Creating, generating and writing the IV
         RandomGenerator rnd; byte iv[16];
         rnd.GenerateBlock(iv, sizeof(iv)); Out.write(iv, 16);
@@ -385,7 +383,6 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
         AddError(name, _("Cannot rename the result"));
         return;
     }
-    ++NumFiles;
     return;
 }
 
@@ -393,7 +390,7 @@ void EntangleDialog::Process(size_t task_index, wxString & password)
 void EntangleDialog::OnButton1Click(wxCommandEvent& WXUNUSED(event))
 {
     /* PREPARATIONS */
-    NumFiles=0; NumBytes=0; Total=0; //Clear counters
+    NumBytes=0; Total=0; //Clear counters
     //Ensure that tasks are selected and the password is typed in
     if(!TasksSelected)
     {
@@ -407,20 +404,25 @@ void EntangleDialog::OnButton1Click(wxCommandEvent& WXUNUSED(event))
     }
     //Get the password
     wxString password = TextCtrl1->GetLineText(0);
-    //Expand all the paths, get file sizes
+    //Expand all the paths
     Preprocess();
+    //Get file sizes
+    int NumFiles = 0; GetSizes(NumFiles);
     //Update the UI
-    SetText(2, _("Processing...")); wxYield();
+    SetText(2, _("Processing...")); wxTheApp->Yield();
     ProgressDialog1 = new wxProgressDialog(_("Progress"), _("Starting..."), 100, this);
     ProgressDialog1->CenterOnParent();
     ProgressDialog1->Show();
-    ProgressDialog1->Update(0, show_str);
+    ProgressDialog1->Update(0, _("Starting..."));
 
     /* PROCESSING THE TASKS */
     for(size_t task_index = 0; task_index<tasks.GetCount(); ++task_index)
     {
         if(tasks[task_index]!="SKIP")
+        {
             Process(task_index, password);
+            ++NumFiles;
+        }
     }
     ProgressDialog1->Update(100, _("Done!"));
 
@@ -479,7 +481,7 @@ void EntangleDialog::OnPasswordChange(wxCommandEvent& WXUNUSED(event))
         SetText(2, _("Medium")+" ("+ToString(length)+"/16)");
     else
         SetText(2, _("Short")+" ("+ToString(length)+"/16)");
-    wxYield();
+    wxTheApp->Yield();
 }
 
 void EntangleDialog::OnAbout(wxCommandEvent& WXUNUSED(event))
@@ -545,12 +547,15 @@ void EntangleDialog::Preprocess()
 			tasks.push_back(all_tasks[pos]);
     }
 
-    /* GETTING FILE SIZES */
-    unsigned long long fsize;
+}
+
+void EntangleDialog::GetSizes(int & NumFiles)
+{
+     /* GETTING FILE SIZES */
     file_sizes = new unsigned long long[tasks.size()];
     for(size_t i=0; i<tasks.GetCount(); ++i)
     {
-        fsize = GetFileSize(tasks[i]);
+        static unsigned long long fsize = GetFileSize(tasks[i]);
         //Processing exceptions
         if(fsize==0) //Empty file
         {
@@ -651,22 +656,25 @@ void EntangleDialog::UpdateTasks()
 
 	wxString first_half, second_half, result;
 	bool chosen = !UI_files.empty(), dropped = !drop_files.empty();
+	size_t num_chosen = UI_files.size(), num_dropped = drop_files.size();
 
-	if(UI_files.empty()&&drop_files.empty())
-		TasksSelected = false;
-	else
+	if(chosen||dropped)
 		TasksSelected = true;
+	else
+		TasksSelected = false;
 
-	if(chosen) first_half = wxString::Format(wxPLURAL("Selected %lu", "Selected %lu", UI_files.size()), UI_files.size());
+	if(chosen)
+        first_half = wxString::Format(wxPLURAL("Selected %lu", "Selected %lu", num_chosen), num_chosen);
 
-	if(dropped) second_half = wxString::Format(wxPLURAL("Received %lu", "Received %lu", drop_files.size()), drop_files.size());
+	if(dropped)
+        second_half = wxString::Format(wxPLURAL("Received %lu", "Received %lu", num_dropped), num_dropped);
 
 	if(chosen && !dropped)
-		result = first_half + wxPLURAL(" object", " objects", UI_files.size());
+		result = first_half + wxPLURAL(" object", " objects", num_chosen);
 	else if(dropped && !chosen)
-		result = second_half + wxPLURAL(" object", " objects", drop_files.size());
+		result = second_half + wxPLURAL(" object", " objects", num_dropped);
 	else if(chosen && dropped)
-		result = first_half + ", " + second_half.MakeLower();
+		result = first_half + wxT(", ") + second_half.MakeLower();
 	else if(!chosen && !dropped)
 		result = _("Choose files or folders:");
 
@@ -678,11 +686,11 @@ void EntangleDialog::AddDropped(wxArrayString filenames)
     drop_files.insert(drop_files.end(), filenames.begin(), filenames.end());
 }
 
-void EntangleDialog::UpdateProgress()
+void EntangleDialog::UpdateProgress(wxString show_str)
 {
     //Re-calculates current progress
     //and updates the ProgressDialog()
-    ShowProgress = (double)NumBytes/Total*100;
+    int ShowProgress = (double)NumBytes/Total*100;
     if(ShowProgress>100) ShowProgress=100;
     ProgressDialog1->Update(ShowProgress, show_str);
     wxTheApp->Yield();

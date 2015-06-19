@@ -28,10 +28,11 @@ class EntangleDialog: public wxDialog
         EntangleDialog(wxWindow* parent,wxWindowID id = -1);
         virtual ~EntangleDialog();
         void Preprocess();
+        void GetSizes(int & NumFiles);
         void Process(size_t task_index, wxString & password);
         void CleanUp();
         void AddDropped(wxArrayString filenames);
-        void UpdateProgress();
+        void UpdateProgress(wxString show_str = wxEmptyString);
         void UpdateTasks();
         void SetText(int line, wxString message);
 
