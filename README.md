@@ -2,6 +2,9 @@
 ![Entangle Logo](http://entangle.ucoz.net/text_logo.png)
 
 ![Screenshot](http://entangle.ucoz.net/Screenshots/Entangle_0.9.png)
+
+[![Build Status](https://travis-ci.org/IlyaBizyaev/Entangle.svg?branch=unstable)](https://travis-ci.org/IlyaBizyaev/Entangle)
+
 ## Description
 Entangle is a simple application, designed to help users protect their private and personal data in a few clicks.
 Entangle is built using wxWidgets and Crypto++ libraries, which makes it cross-platform.
