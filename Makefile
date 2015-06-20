@@ -5,7 +5,7 @@ ifeq ($(OS),Windows_NT)
 WXDIR=C:\wxWidgets-3.0.2
 # Where the cryptopp dir is located 
 CRYPTDIR='C:\'
-CFLAGS=-Wall -pipe -mthreads -D__GNUWIN32__ -D__WXMSW__ -DwxUSE_UNICODE -O2 -I$(WXDIR)\include -I$(CRYPTDIR) -I$(WXDIR)\lib\gcc_lib\mswu -I./inc/ -c
+CFLAGS=-Wall -pipe -mthreads -D__GNUWIN32__ -D__WXMSW__ -DwxUSE_UNICODE -I$(WXDIR)\include -I$(CRYPTDIR) -I$(WXDIR)\lib\gcc_lib\mswu -I./inc/ -c
 LIBS=-lwxmsw30u_core -lwxbase30u -lwxmsw30u_adv -lwxpng -lwxjpeg -lwxtiff -lwxzlib -lkernel32 -lgdi32 -lwinspool -lcomdlg32 -lshell32 -lole32 -loleaut32 -luuid -lcomctl32
 else
 # FOR LINUX
