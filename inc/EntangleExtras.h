@@ -10,19 +10,24 @@
 #ifndef ENTANGLE_EXTRAS_H
 #define ENTANGLE_EXTRAS_H
 
+/** ------------ Include files ------------ **/
+#include "EntangleDialog.h"
+
 #include <fstream>              //File operations
 #include <wx/dnd.h>             //File drag & drop
 #include <cryptopp/simple.h>    //Basics of Crypto++
 #include <cryptopp/osrng.h>     //Random generator
+/** --------------------------------------- **/
 
-
-#include "EntangleMain.h"
-
+/** ------------- Definitions ------------- **/
 #define ENTANGLE_CORE 3
+#define BUF_SIZE 16384
+#define TAG_SIZE 16
+/** --------------------------------------- **/
 
-typedef unsigned char byte;
 using namespace std;
 using namespace CryptoPP;
+
 
 //My lovely structures ^_^
 
@@ -34,6 +39,20 @@ struct Header
     int core_version;                   /* Header format version */
     unsigned long long file_size;       /* Size of original file */
     byte keys[32];                      /* AES-256 key storage area */
+};
+
+/* ErrorTracker; operates errors */
+class ErrorTracker
+{
+public:
+    //Constructor
+    ErrorTracker() {   }
+    //Adds error to the log
+    void AddError(wxString filename, wxString message);
+    //Methods that work with WentWrong variable
+    bool HasIssues(); void CleanIssues();
+private:
+    static bool WentWrong;
 };
 
 /* A simple class which accepts dropped files */
@@ -52,7 +71,6 @@ private:
 class BinFile
 {
 public:
-    BinFile();
     BinFile(wxString & filename, ios_base::openmode file_mode);
     wxString GetName();
     void open(wxString & filename, ios_base::openmode file_mode);

@@ -14,18 +14,19 @@ endif
 
 build: i18n
 #### BUILDING ####
-	$(CC) $(CFLAGS) ./src/EntangleApp.cpp -o EntangleApp.o
 	$(CC) $(CFLAGS) ./src/EntangleMain.cpp -o EntangleMain.o
+	$(CC) $(CFLAGS) ./src/EntangleApp.cpp -o EntangleApp.o
+	$(CC) $(CFLAGS) ./src/EntangleDialog.cpp -o EntangleDialog.o
 	$(CC) $(CFLAGS) ./src/EntangleExtras.cpp -o EntangleExtras.o
 
 ifeq ($(OS),Windows_NT)
 # WINDOWS BUILD
 	windres.exe -I$(WXDIR)\include -I$(WXDIR)\lib\gcc_lib\mswu -J rc -O coff -i resource.rc -o resource.res
 
-	$(CC) -L$(WXDIR)\lib\gcc_lib -o Entangle.exe EntangleApp.o EntangleMain.o EntangleExtras.o resource.res -s -static-libgcc -static-libstdc++ -mthreads $(LIBS) $(CRYPTDIR)cryptopp\libcryptopp.a -mwindows
+	$(CC) -L$(WXDIR)\lib\gcc_lib -o Entangle.exe EntangleMain.o EntangleApp.o EntangleDialog.o EntangleExtras.o resource.res -s -static-libgcc -static-libstdc++ -mthreads $(LIBS) $(CRYPTDIR)cryptopp\libcryptopp.a -mwindows
 else
 # LINUX BUILD
-	$(CC) -o Entangle EntangleApp.o EntangleMain.o EntangleExtras.o -s -pthread -lwx_gtk2u_core-3.0 -lwx_baseu-3.0  -lwx_gtk2u_adv-3.0 -lcryptopp
+	$(CC) -o Entangle EntangleMain.o EntangleApp.o EntangleDialog.o EntangleExtras.o -s -pthread -lwx_gtk2u_core-3.0 -lwx_baseu-3.0  -lwx_gtk2u_adv-3.0 -lcryptopp
 endif
 
 .PHONY: i18n install uninstall clean

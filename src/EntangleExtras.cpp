@@ -25,6 +25,22 @@ Header::Header(unsigned long long fsize)
     rnd.GenerateBlock(keys, 32);
 }
 
+/* ErrorTracker's methods */
+bool ErrorTracker::WentWrong = false;
+
+void ErrorTracker::AddError(wxString filename, wxString message)
+{
+    //Producing a human-readable output
+    //and pushing the result to the main list.
+    wxLogError(filename+" ("+message+")");
+    WentWrong = true;
+}
+
+bool ErrorTracker::HasIssues()      { return WentWrong; }
+
+void ErrorTracker::CleanIssues()    { WentWrong = false; }
+
+
 /* DroppedFilesReceiver's methods */
 //Constructor;
 DroppedFilesReciever::DroppedFilesReciever(EntangleDialog * g_dialog) { dialog = g_dialog; }
@@ -32,10 +48,8 @@ DroppedFilesReciever::DroppedFilesReciever(EntangleDialog * g_dialog) { dialog =
 //Called when something is dropped onto the window
 bool DroppedFilesReciever::OnDropFiles(wxCoord x, wxCoord y, const wxArrayString &filenames)
 {
-    //Save paths to the global array
+    //Copy paths to the dialog
     dialog->AddDropped(filenames);
-    //Update the UI
-    dialog->UpdateTasks();
     return true;
 }
 
@@ -52,26 +66,23 @@ size_t EntangleSink::Put2(const byte *inString, size_t length, int, bool)
 
 /* BinFile wrapper's methods */
 
-//Constructor
-BinFile::BinFile() { IsOk = false; }
-
-//Constructor (accepts name and open mode, calls open()
+//Constructor (accepts name and open mode)
 BinFile::BinFile(wxString & filename, ios_base::openmode file_mode)
 {
-    open(filename, file_mode | ios_base::binary);
+    cfile.open(filename, file_mode | ios_base::binary);
+    if(!cfile.is_open()) { IsOk = false; return; }
+    name = filename; mode = file_mode; IsOk = true;
 }
 
 //Destructor, calls close()
 BinFile::~BinFile() { close(); }
 
-wxString BinFile::GetName() { return name; }
-
-//Opens the file and checks for success
-void BinFile::open(wxString & filename, ios_base::openmode file_mode)
+wxString BinFile::GetName()
 {
-    cfile.open(filename, file_mode);
-    if(!cfile.is_open()) { IsOk = false; return; }
-    name = filename; mode = file_mode; IsOk = true;
+    if(IsOk)
+        return name;
+    else
+        return wxEmptyString;
 }
 
 bool BinFile::seek_start()

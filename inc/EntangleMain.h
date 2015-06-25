@@ -1,8 +1,8 @@
 /***************************************************************
  * Name:      EntangleMain.h
- * Purpose:   Defines Application Frame
+ * Purpose:   Defines the Entangle class
  * Author:    Ilya Bizyaev (bizyaev.game@yandex.ru)
- * Created:   2015-01-01
+ * Created:   2015-06-23
  * Copyright: Ilya Bizyaev (utor.ucoz.ru)
  * License:   GNU GPL v3
  **************************************************************/
@@ -10,70 +10,51 @@
 #ifndef ENTANGLEMAIN_H
 #define ENTANGLEMAIN_H
 
-//(*Headers(EntangleDialog)
-#include <wx/bmpbuttn.h>
-#include <wx/progdlg.h>
-#include <wx/dialog.h>
-#include <wx/sizer.h>
-#include <wx/button.h>
-#include <wx/dirctrl.h>
-#include <wx/stattext.h>
-#include <wx/textctrl.h>
-//*)
+#include "EntangleDialog.h"
+#include "EntangleExtras.h"
 
+// Cryptography-responsible class. This is the main part of Entangle.
+// This class is defined as singleton, as there should exist only one
+// instance of it for the whole program.
 
-class EntangleDialog: public wxDialog
+class Entangle
 {
     public:
-        EntangleDialog(wxWindow* parent,wxWindowID id = -1);
-        virtual ~EntangleDialog();
-        void Preprocess();
-        void GetSizes(int & NumFiles);
-        void Process(size_t task_index, wxString & password);
-        void CleanUp();
-        void AddDropped(wxArrayString filenames);
-        void UpdateProgress(wxString show_str = wxEmptyString);
-        void UpdateTasks();
-        void SetText(int line, wxString message);
-
+        //A method which provides callers with a link to the only instance
+        static Entangle& Instance()
+        {
+            static Entangle OnlyInstance;
+            return OnlyInstance;
+        }
+        //Constructor is private, thus this class has needs a method to be initialized
+        void Initialize(EntangleDialog * g_dialog, wxArrayString & g_tasks, wxString & password, MODE g_mode);
+        //Called by the UI; runs main processing algorithm for each task
+        int Process();
+        //Check if header's versions matches program's one
+        bool CheckHeader(Header & header, wxString & filename);
     private:
+        //Making Entangle a singleton
+        Entangle() : Initialized(false) {  };
+        Entangle(const Entangle&);
+        const Entangle& operator=(const Entangle&);
 
-        //(*Handlers(EntangleDialog)
-        void OnAbout(wxCommandEvent& event);
-        void OnButton1Click(wxCommandEvent& event);
-        void OnLockClick(wxCommandEvent& event);
-        void OnPasswordChange(wxCommandEvent& event);
-        void OnFileReselect(wxTreeEvent& event);
-        //*)
+        //Get file size for each file
+        void GetSizes(int & NumFiles);
+        //Process one file. MAIN ALGORITHM!
+        void ProcessFile(size_t task_index);
+        //Cleaning up after processing
+        void CleanUp();
 
-        //(*Identifiers(EntangleDialog)
-        static const long ID_STATICTEXT1;
-        static const long ID_GENERICDIRCTRL1;
-        static const long ID_STATICTEXT2;
-        static const long ID_STATICTEXT3;
-        static const long ID_TEXTCTRL1;
-        static const long ID_BITMAPBUTTON1;
-        static const long ID_BUTTON2;
-        static const long ID_BUTTON1;
-        static const long ID_PROGRESSDIALOG1;
-        //*)
+        MODE mode;                  //Mode of operation
+        wxArrayString tasks;        //Task array
+        wxString password;          //User's password
+        EntangleDialog * dialog;    //Pointer to the GUI
 
-        //(*Declarations(EntangleDialog)
-        wxProgressDialog* ProgressDialog1;
-        wxGenericDirCtrl* GenericDirCtrl1;
-        wxButton* Button1;
-        wxStaticText* StaticText1;
-        wxButton* AboutButton;
-        wxStaticText* StaticText3;
-        wxTextCtrl* TextCtrl1;
-        wxStaticText* StaticText2;
-        wxBitmapButton* BitmapButton1;
-        //*)
+        ErrorTracker e_track;
 
-        wxArrayString UI_files, drop_files, tasks;
+        bool Initialized;
         unsigned long long * file_sizes;
-
-        DECLARE_EVENT_TABLE()
+        unsigned long long NumBytes, Total;
 };
 
 #endif // ENTANGLEMAIN_H
