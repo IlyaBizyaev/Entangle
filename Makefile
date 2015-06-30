@@ -3,10 +3,10 @@ SOURCES=EntangleMain.cpp EntangleApp.cpp EntangleFrame.cpp EntangleExtras.cpp
 ### DEFINITIONS ###
 ifeq ($(OS),Windows_NT)
 # FOR WINDOWS
-WXDIR=C:\wxWidgets-3.0.2
+WXDIR=/c/wxWidgets-3.0.2
 # Where the 'cryptopp' dir is located 
-CRYPTDIR='C:\'
-CFLAGS=-Wall -pipe -mthreads -D__GNUWIN32__ -D__WXMSW__ -DwxUSE_UNICODE -I$(WXDIR)\include -I$(CRYPTDIR) -I$(WXDIR)\lib\gcc_lib\mswu -I./inc/ -c
+CRYPTDIR=/c/
+CFLAGS=-Wall -pipe -mthreads -D__GNUWIN32__ -D__WXMSW__ -O2 -DwxUSE_UNICODE -I$(WXDIR)/include -I$(CRYPTDIR) -I$(WXDIR)/lib/gcc_lib/mswu -I./inc/ -c
 LIBS=-lwxmsw30u_core -lwxbase30u -lwxmsw30u_adv -lwxpng -lwxjpeg -lwxtiff -lwxzlib -lkernel32 -lgdi32 -lwinspool -lcomdlg32 -lshell32 -lole32 -loleaut32 -luuid -lcomctl32
 else
 # FOR LINUX
@@ -23,9 +23,9 @@ build: i18n
 
 ifeq ($(OS),Windows_NT)
 # WINDOWS BUILD
-	windres.exe -I$(WXDIR)\include -I$(WXDIR)\lib\gcc_lib\mswu -J rc -O coff -i resource.rc -o resource.res
+	windres.exe -I$(WXDIR)/include -I$(WXDIR)/lib/gcc_lib/mswu -J rc -O coff -i resource.rc -o resource.res
 
-	$(CC) -L$(WXDIR)\lib\gcc_lib $(SOURCES:.cpp=.o) -o Entangle.exe resource.res -s -static-libgcc -static-libstdc++ -mthreads $(LIBS) $(CRYPTDIR)cryptopp\libcryptopp.a -mwindows
+	$(CC) -L$(WXDIR)\lib\gcc_lib $(SOURCES:.cpp=.o) -o Entangle.exe resource.res -s -static-libgcc -static-libstdc++ -mthreads $(LIBS) $(CRYPTDIR)cryptopp/libcryptopp.a -mwindows
 else
 # LINUX BUILD
 	$(CC) $(SOURCES:.cpp=.o) -o Entangle -s -pthread -lwx_gtk2u_core-3.0 -lwx_baseu-3.0  -lwx_gtk2u_adv-3.0 -lcryptopp
