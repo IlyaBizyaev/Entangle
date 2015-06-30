@@ -10,7 +10,7 @@
 #ifndef ENTANGLEMAIN_H
 #define ENTANGLEMAIN_H
 
-#include "EntangleDialog.h"
+#include "EntangleFrame.h"
 #include "EntangleExtras.h"
 
 // Cryptography-responsible class. This is the main part of Entangle.
@@ -27,14 +27,14 @@ class Entangle
             return OnlyInstance;
         }
         //Constructor is private, thus this class has needs a method to be initialized
-        void Initialize(EntangleDialog * g_dialog, wxArrayString & g_tasks, wxString & password, MODE g_mode);
+        void Initialize(EntangleFrame * g_dialog, wxArrayString & g_tasks, wxString & password, MODE g_mode);
         //Called by the UI; runs main processing algorithm for each task
         int Process();
         //Check if header's versions matches program's one
         bool CheckHeader(Header & header, wxString & filename);
     private:
         //Making Entangle a singleton
-        Entangle() : Initialized(false) {  };
+        Entangle() : Initialized(false), file_sizes(NULL), NumBytes(0), Total(0) {  };
         Entangle(const Entangle&);
         const Entangle& operator=(const Entangle&);
 
@@ -48,7 +48,7 @@ class Entangle
         MODE mode;                  //Mode of operation
         wxArrayString tasks;        //Task array
         wxString password;          //User's password
-        EntangleDialog * dialog;    //Pointer to the GUI
+        EntangleFrame * dialog;    //Pointer to the GUI
 
         ErrorTracker e_track;
 

@@ -43,7 +43,7 @@ void ErrorTracker::CleanIssues()    { WentWrong = false; }
 
 /* DroppedFilesReceiver's methods */
 //Constructor;
-DroppedFilesReciever::DroppedFilesReciever(EntangleDialog * g_dialog) { dialog = g_dialog; }
+DroppedFilesReciever::DroppedFilesReciever(EntangleFrame * g_dialog) { dialog = g_dialog; }
 
 //Called when something is dropped onto the window
 bool DroppedFilesReciever::OnDropFiles(wxCoord x, wxCoord y, const wxArrayString &filenames)
@@ -144,15 +144,15 @@ unsigned int RandomGenerator::RandomNumber(int num_min, int num_max)
     return result;
 }
 
-void RandomGenerator::RandTempName(wxString & temp_name)
+wxString RandomGenerator::RandTempName(wxString location)
 {
-    wxString new_temp_name;
+    wxString temp_name;
     do //While such file exists
     {
         //Random filename length (1 - 20):
         int length = RandomNumber(1, 20);
         //Creating new char buffer for the filename
-        char * filename = new char[length+1];
+        Array<char> filename(length+1);
         //Filling the array (a-z, A-Z, 0-9):
         for(int i=0; i<length; ++i)
         {
@@ -167,11 +167,17 @@ void RandomGenerator::RandTempName(wxString & temp_name)
         //Writing zero character to the end
         filename[length] = '\0';
         //Building the full path
-        new_temp_name = temp_name + wxString(filename);
-        delete[] filename;
-    } while(wxFileExists(new_temp_name));
+        temp_name = location + wxString(filename);
+    } while(wxFileExists(temp_name));
     //Returning filename and finishing
-    temp_name = new_temp_name;
-    return;
+    return temp_name;
 }
 
+/* Array's methods */
+template<typename T>
+T& Array<T>::operator[] (unsigned long Index)
+{
+    assert(Index>=0);
+    assert(Index<m_size);
+    return data[Index];
+}

@@ -39,17 +39,15 @@ bool EntangleApp::OnInit()
             wxMessageBox("Couldn't find translation for "+m_locale.GetLanguageName(m_lang));
 
         //Creating a dialog
-    	EntangleDialog Dlg(0);
+    	EntangleFrame* Frame = new EntangleFrame(0);
     	//On Windows, setting an icon.
         #ifdef __WIN32__
-            Dlg.SetIcon(wxICON(aaaaa));
+            Frame->SetIcon(wxICON(aaaaa));
         #endif
         //Showing the dialog
-    	SetTopWindow(&Dlg);
-    	Dlg.ShowModal();
-    	wxsOK = false;
+    	Frame->Show();
+    	SetTopWindow(Frame);
     }
     //*)
     return wxsOK;
-
 }

@@ -11,7 +11,7 @@
 #define ENTANGLE_EXTRAS_H
 
 /** ------------ Include files ------------ **/
-#include "EntangleDialog.h"
+#include "EntangleFrame.h"
 
 #include <fstream>              //File operations
 #include <wx/dnd.h>             //File drag & drop
@@ -60,11 +60,11 @@ class DroppedFilesReciever : public wxFileDropTarget
 {
 public:
 	//Constructor
-    DroppedFilesReciever(EntangleDialog * g_dialog);
+    DroppedFilesReciever(EntangleFrame * g_dialog);
     //Called when something is dropped onto the window
     bool OnDropFiles(wxCoord x, wxCoord y, const wxArrayString &filenames);
 private:
-    EntangleDialog * dialog; //Pointer to the dialog, needed to refresh the StaticText
+    EntangleFrame * dialog; //Pointer to the dialog, needed to refresh the StaticText
 };
 
 /* A simple wrapper for C++ file streams */
@@ -110,10 +110,41 @@ public:
     //Generates a random number in the given range
     unsigned int RandomNumber(int num_min, int num_max);
     //Makes up a name for a temp file
-    void RandTempName(wxString & temp_name);
+    wxString RandTempName(wxString location);
 private:
     //System random generator
     static AutoSeededRandomPool rnd;
+};
+
+/* A simple array class template that performs dynamic */
+/* memory management and casting to (T*), which allows */
+/* to use it as a usual array. */
+template <typename T>
+class Array
+{
+public:
+    //Constructor
+    Array(unsigned long size)
+    {
+        try
+        {
+            data = new T[size];
+            m_size = size;
+        }
+        catch(...)
+        {
+            cout << "Could not allocate " << size << " bytes." << endl;
+        }
+    }
+    //Typecast operator
+    operator T*() { return data; }
+    //Subscript operator
+    T& operator[] (unsigned long Index);
+    //Destructor
+    ~Array() { delete[] data; }
+private:
+    T * data;
+    unsigned long m_size;
 };
 
 #endif // ENTANGLE_EXTRAS_H
