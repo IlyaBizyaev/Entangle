@@ -62,7 +62,7 @@ void EntangleApp::OnInitCmdLine(wxCmdLineParser& parser)
     parser.SetDesc (g_cmdLineDesc);
     // must refuse '/' as parameter starter or cannot use "/path" style paths
     parser.SetSwitchChars (wxT("-"));
-    parser.SetLogo(wxS("Entangle v.0.9"));
+    parser.SetLogo(wxS("Entangle v.0.9.2"));
 }
 
 bool EntangleApp::OnCmdLineParsed(wxCmdLineParser& parser)

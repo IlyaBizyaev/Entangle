@@ -214,7 +214,7 @@ void EntangleFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
 {
     wxAboutDialogInfo aboutInfo;
     aboutInfo.SetName("Entangle");
-    aboutInfo.SetVersion("0.9.1");
+    aboutInfo.SetVersion("0.9.2");
     aboutInfo.SetDescription(_("Simple and user-friendly application\nfor AES-based data encryption"));
     aboutInfo.SetCopyright("(C) Ilya Bizyaev <bizyaev@lyceum62.ru>, 2015");
     aboutInfo.SetWebSite("http://entangle.ucoz.net");
