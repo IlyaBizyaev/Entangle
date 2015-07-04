@@ -6,6 +6,5 @@ before_install:
   - sudo apt-get install -y libwxbase3.0-0 libwxbase3.0-dev libwxgtk3.0-0 libwxgtk3.0-dev wx3.0-headers wx-common libcrypto++9 libcrypto++-dev
 script:
   - make
-  - make test
 after_script:
   - make clean
