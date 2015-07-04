@@ -41,13 +41,15 @@ using namespace std;
 using namespace CryptoPP;
 
 
-void Entangle::Initialize(EntangleFrame * g_dialog, wxArrayString & g_tasks, wxString & g_password, MODE g_mode)
+void Entangle::Initialize
+(wxArrayString & g_tasks, wxString & g_password, MODE g_mode, ProgressDisplayer * g_pdisplay)
 {
     //Copying data from GUI
-    dialog = g_dialog;
-    tasks = g_tasks;
+
+    tasks = Traverse(g_tasks);
     password = g_password;
     mode = g_mode;
+    pdisplay = g_pdisplay;
 
     //Now initialized.
     Initialized = true;
@@ -66,8 +68,8 @@ int Entangle::Process()
     {
         if(tasks[task_index]!="SKIP")
         {
-            ProcessFile(task_index);
-            ++NumFiles;
+            if(ProcessFile(task_index))
+                ++NumFiles;
         }
     }
     CleanUp();
@@ -77,9 +79,9 @@ int Entangle::Process()
 void Entangle::GetSizes(int & NumFiles)
 {
      /* GETTING FILE SIZES */
-    assert(file_sizes==NULL); assert(Total==0);
+    assert(file_sizes==NULL);
     file_sizes = new unsigned long long[tasks.size()];
-    unsigned long long fsize;
+    unsigned long long fsize, total = 0;
     for(size_t i=0; i<tasks.GetCount(); ++i)
     {
         fsize = GetFileSize(tasks[i]);
@@ -97,15 +99,14 @@ void Entangle::GetSizes(int & NumFiles)
             continue;
         }
         file_sizes[i] = fsize;
-        Total+=fsize;
+        total+=fsize;
     }
+    pdisplay->SetTotal(total);
 }
 
 //Cleaning up after processing
 void Entangle::CleanUp()
 {
-    //Clear counters
-    Total=0; NumBytes=0;
     //Deallocate array with file sizes
     if(file_sizes!=NULL)
     {
@@ -117,7 +118,7 @@ void Entangle::CleanUp()
 }
 
 /* Main function */
-void Entangle::ProcessFile(size_t task_index)
+bool Entangle::ProcessFile(size_t task_index)
 {
     //Preparing name for temp file
     wxString name = tasks[task_index];
@@ -128,7 +129,6 @@ void Entangle::ProcessFile(size_t task_index)
 
     //Required variables
     unsigned long long fsize, checker, dleft;
-    static wxString show_str;
     /** Opening files **/
     //Opening original file
     BinFile In(name, ios_base::in);
@@ -136,7 +136,7 @@ void Entangle::ProcessFile(size_t task_index)
     {
         //Can't open the input file
         e_track.AddError(name, _("Cannot open the input file"));
-        return;
+        return false;
     }
     //Opening the temp file
     BinFile Out(temp_path, ios_base::out|ios_base::trunc);
@@ -145,15 +145,14 @@ void Entangle::ProcessFile(size_t task_index)
         //Can't open the output file
         GoodFinish(In, Out);
         e_track.AddError(name, _("Cannot create an output file"));
-        return;
+        return false;
     }
     /** <<<<<<< MOST IMPORTANT PART >>>>>>> **/
 
     if(mode == Encrypt)
     {
         /** ENCRYPTION **/
-        show_str = _("Encrypting ") + fname.GetFullName();
-        dialog->UpdateProgress(NumBytes, Total, show_str);
+        pdisplay->SetText(_("Encrypting ") + fname.GetFullName());
         //Creating, generating and writing the IV
         RandomGenerator rnd; byte iv[16];
         rnd.GenerateBlock(iv, sizeof(iv)); Out.write(iv, 16);
@@ -203,7 +202,7 @@ void Entangle::ProcessFile(size_t task_index)
         {
             e_track.AddError(name, error_text);
             GoodFinish(In, Out);
-            return;
+            return false;
         }
 
         /** ENCRYPTING THE VERY FILE **/
@@ -222,15 +221,13 @@ void Entangle::ProcessFile(size_t task_index)
         {
             In.read(transfer, BUF_SIZE);
             gcm_f.ChannelPut("", transfer, BUF_SIZE);
-            NumBytes+=BUF_SIZE;
-            dialog->UpdateProgress(NumBytes, Total);
+            pdisplay->IncreaseCurrent(BUF_SIZE);
         }
         if(dleft!=0)
         {
             In.read(transfer, dleft);
             gcm_f.ChannelPut("", transfer, dleft);
-            NumBytes+=dleft;
-            dialog->UpdateProgress(NumBytes, Total);
+            pdisplay->IncreaseCurrent(dleft);
         }
 
         gcm_f.MessageEnd();
@@ -240,8 +237,7 @@ void Entangle::ProcessFile(size_t task_index)
     else
     {
         /** DECRYPTION **/
-        show_str = _("Decrypting ") + fname.GetFullName();
-        dialog->UpdateProgress(NumBytes, Total, show_str);
+        pdisplay->SetText(_("Decrypting ") + fname.GetFullName());
         //Reading the IV
         byte iv[16];  In.read(iv, 16);
         //Reserving space for retrieved header
@@ -275,7 +271,7 @@ void Entangle::ProcessFile(size_t task_index)
             {
                 e_track.AddError(name, _("Incorrect header size"));
                 GoodFinish(In, Out);
-                return;
+                return false;
             }
             df.Get((byte*)&DecryptedHeader, n);
 
@@ -285,7 +281,7 @@ void Entangle::ProcessFile(size_t task_index)
             else
             {
                 GoodFinish(In, Out);
-                return;
+                return false;
             }
 
             /** ----- Decrypting the very file ----- **/
@@ -308,15 +304,13 @@ void Entangle::ProcessFile(size_t task_index)
             {
                 In.read(transfer, BUF_SIZE);
                 gcm_f.ChannelPut("", transfer, BUF_SIZE);
-                NumBytes+=BUF_SIZE;
-                dialog->UpdateProgress(NumBytes, Total);
+                pdisplay->IncreaseCurrent(BUF_SIZE);
             }
             if(dleft!=0)
             {
                 In.read(transfer, dleft);
                 gcm_f.ChannelPut("", transfer, dleft);
-                NumBytes+=dleft;
-                dialog->UpdateProgress(NumBytes, Total);
+                pdisplay->IncreaseCurrent(dleft);
             }
 
             In.read(transfer, TAG_SIZE);
@@ -351,7 +345,7 @@ void Entangle::ProcessFile(size_t task_index)
         {
             e_track.AddError(name, error_text);
             GoodFinish(In, Out);
-            return;
+            return false;
         }
 
     }
@@ -364,11 +358,10 @@ void Entangle::ProcessFile(size_t task_index)
     {
         //If can`t rename
         e_track.AddError(name, _("Cannot rename the result"));
-        return;
+        return false;
     }
-    return;
+    return true;
 }
-
 
 /* Cryptography */
 void AddTail(BinFile & target)
@@ -469,6 +462,29 @@ bool Entangle::CheckHeader(Header & header, wxString & filename)
             e_track.AddError(filename, _("Was encrypted by older version"));
         return false;
     }
+}
+
+wxArrayString Traverse (wxArrayString & input)
+{
+    wxArrayString result;
+    //For each task
+    for(size_t pos = 0; pos < input.size(); ++pos)
+    {
+        /* If the object does not exist */
+        if(!wxFileName::Exists(input[pos]))
+        {
+            ErrorTracker e_track;
+            e_track.AddError(input[pos], _("Does not exist"));
+            continue;
+        }
+
+		/* Checking object type */
+		if(wxDirExists(input[pos]))// If that's folder, scan all subdirectories and files inside it.
+			wxDir::GetAllFiles(input[pos], &result);
+		else//If that's file, simply push it to the vector.
+			result.push_back(input[pos]);
+    }
+    return result;
 }
 
 /* For emergencies */

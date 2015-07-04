@@ -19,6 +19,10 @@ IMPLEMENT_APP(EntangleApp);
 bool EntangleApp::OnInit()
 {
     //(*AppInitialize
+
+    if(!wxApp::OnInit())
+        return false;
+
     bool wxsOK = true;
     wxInitAllImageHandlers();
     if (wxsOK)
@@ -50,4 +54,77 @@ bool EntangleApp::OnInit()
     }
     //*)
     return wxsOK;
+}
+
+
+void EntangleApp::OnInitCmdLine(wxCmdLineParser& parser)
+{
+    parser.SetDesc (g_cmdLineDesc);
+    // must refuse '/' as parameter starter or cannot use "/path" style paths
+    parser.SetSwitchChars (wxT("-"));
+    parser.SetLogo(wxS("Entangle v.0.9"));
+}
+
+bool EntangleApp::OnCmdLineParsed(wxCmdLineParser& parser)
+{
+    wxString password, mode;
+    bool got_password = parser.Found("p", &password);
+    bool got_mode = parser.Found("m", &mode);
+
+    if(got_password && got_mode) //Console mode
+        console_mode = true;
+    else if(!got_password&&!got_mode) //GUI mode
+    {
+        console_mode = false;
+        return true;
+    }
+    else //Only one option is specified
+    {
+        cout << "You should specify BOTH password and mode!" << endl;
+        return false;
+    }
+
+    mode.MakeLower();
+
+    MODE e_mode;
+    if(mode!="encryption"&&mode!="decryption")
+    {
+        cout << "Invalid mode specified." << endl;
+        return false;
+    }
+    else if(mode == "encryption")
+        e_mode = Encrypt;
+    else
+        e_mode = Decrypt;
+
+    if(!parser.GetParamCount())
+    {
+        cout << "No tasks specified." << endl;
+        return false;
+    }
+
+    // Getting files to process
+    wxArrayString tasks;
+    for(size_t i = 0; i < parser.GetParamCount(); i++)
+        tasks.Add(parser.GetParam(i));
+
+    ProgressDisplayer pdisplay;
+    ErrorTracker e_track;
+    e_track.SetConsoleMode();
+
+    //Getting a link to the Entangle singleton
+    Entangle& eInst = Entangle::Instance();
+    //Initializing it
+    eInst.Initialize(tasks, password, e_mode, &pdisplay);
+
+    int NumFiles = eInst.Process();
+    cout << endl << "Processed " << NumFiles << endl;
+    if(e_track.HasIssues())
+    {
+        e_track.ShowIssues();
+        exit(-1);
+    }
+
+    exit(0);
+    return true;
 }

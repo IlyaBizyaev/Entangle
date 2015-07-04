@@ -11,15 +11,34 @@
 #define ENTANGLEAPP_H
 
 #include <wx/app.h>
+#include <wx/cmdline.h>
 
 class EntangleApp : public wxApp
 {
     public:
-        EntangleApp() {m_lang = wxLANGUAGE_UNKNOWN;}
+        EntangleApp() : m_lang(wxLANGUAGE_UNKNOWN) {  }
         virtual bool OnInit();
+        virtual void OnInitCmdLine(wxCmdLineParser& parser);
+        virtual bool OnCmdLineParsed(wxCmdLineParser& parser);
     private:
         wxLanguage m_lang;
         wxLocale m_locale;
+        bool console_mode;
+};
+
+static const wxCmdLineEntryDesc g_cmdLineDesc [] =
+{
+     { wxCMD_LINE_SWITCH, "h", "help", "displays help on the command line parameters",
+          wxCMD_LINE_VAL_NONE, wxCMD_LINE_OPTION_HELP },
+
+     { wxCMD_LINE_OPTION , "p", "password", "used to specify a password", wxCMD_LINE_VAL_STRING },
+
+     { wxCMD_LINE_OPTION, "m", "mode", "mode of operation", wxCMD_LINE_VAL_STRING },
+
+     { wxCMD_LINE_PARAM, "", "", "", wxCMD_LINE_VAL_STRING,
+     wxCMD_LINE_PARAM_OPTIONAL | wxCMD_LINE_PARAM_MULTIPLE },
+
+     { wxCMD_LINE_NONE }
 };
 
 DECLARE_APP(EntangleApp);

@@ -14,7 +14,6 @@
 #include "EntangleExtras.h"
 
 #include <wx/filename.h>        //File existence and permissions
-#include <wx/dir.h>             //Traversing function
 #include <wx/aboutdlg.h>        //"About the program" dialog
 #include <wx/msgdlg.h>          //Displaying informational messages
 /** --------------------------------------- **/
@@ -22,7 +21,6 @@
 using namespace std;
 using namespace CryptoPP;
 
-inline wxString ToString(int number) { return wxString::FromDouble(number); }
 
 //(*InternalHeaders(EntangleFrame)
 #include <wx/string.h>
@@ -129,21 +127,24 @@ void EntangleFrame::OnButton1Click(wxCommandEvent& WXUNUSED(event))
     }
     //Get the password
     wxString password = TextCtrl1->GetLineText(0);
-    //Join arrays and traverse them
-    Preprocess();
-
-    //Getting a link to the Entangle singleton
-    Entangle& eInst = Entangle::Instance();
-    //Initializing it
-    eInst.Initialize(this, tasks, password, mode);
-    ErrorTracker e_track;
+    //Join task arrays
+    tasks.insert(tasks.end(), UI_files.begin(), UI_files.end());
+    tasks.insert(tasks.end(), drop_files.begin(), drop_files.end());
 
     //Set the UI to the operational mode
     SetText(2, _("Processing...")); wxTheApp->Yield();
     ProgressDialog1 = new wxProgressDialog(_("Progress"), _("Starting..."), 100, this);
     ProgressDialog1->CenterOnParent();
     ProgressDialog1->Show();
-    ProgressDialog1->Update(0, _("Starting..."));
+
+    ProgressDisplayer pdisplay(this);
+
+    //Getting a link to the Entangle singleton
+    Entangle& eInst = Entangle::Instance();
+    //Initializing it
+    eInst.Initialize(tasks, password, mode, &pdisplay);
+    //Creating an error tracker
+    ErrorTracker e_track;
 
     //Calling the Entangle's processing method.
     int NumFiles = eInst.Process();
@@ -157,9 +158,7 @@ void EntangleFrame::OnButton1Click(wxCommandEvent& WXUNUSED(event))
     {
         //If it is so, show them to the user
         SetText(2, _("Went wrong :("));
-        wxLogError(_("Something went wrong:"));
-        wxLog::FlushActive();
-        e_track.CleanIssues();
+        e_track.ShowIssues();
     }
     else
     {
@@ -223,33 +222,6 @@ void EntangleFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
     wxTheApp->SafeYield(NULL, false);
 }
 
-//Tasks preprocessor
-void EntangleFrame::Preprocess()
-{
-    /* COLLECTING FILE PATHS */
-    wxArrayString all_tasks;
-    all_tasks.insert(all_tasks.end(), UI_files.begin(), UI_files.end());
-    all_tasks.insert(all_tasks.end(), drop_files.begin(), drop_files.end());
-    //For each task
-    for(size_t pos = 0; pos < all_tasks.size(); ++pos)
-    {
-        /* If the object does not exist */
-        if(!wxFileName::Exists(all_tasks[pos]))
-        {
-            ErrorTracker e_track;
-            e_track.AddError(all_tasks[pos], _("Does not exist"));
-            continue;
-        }
-
-		/* Checking object type */
-		if(wxDirExists(all_tasks[pos]))// If that's folder, scan all subdirectories and files inside it.
-			wxDir::GetAllFiles(all_tasks[pos], &tasks);
-		else//If that's file, simply push it to the vector.
-			tasks.push_back(all_tasks[pos]);
-    }
-}
-
-
 /* UI-based functions */
 void EntangleFrame::UpdateTasks()
 {
@@ -291,13 +263,9 @@ void EntangleFrame::AddDropped(wxArrayString filenames)
     UpdateTasks();
 }
 
-void EntangleFrame::UpdateProgress(ullong & NumBytes, ullong & Total, wxString show_str)
+void EntangleFrame::UpdateProgress(int progress, wxString show_str)
 {
-    //Re-calculates current progress
-    //and updates the ProgressDialog()
-    int ShowProgress = (double)NumBytes/Total*100;
-    if(ShowProgress>100) ShowProgress=100;
-    ProgressDialog1->Update(ShowProgress, show_str);
+    ProgressDialog1->Update(progress, show_str);
     wxTheApp->Yield();
 }
 

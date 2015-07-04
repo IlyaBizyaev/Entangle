@@ -9,6 +9,10 @@
 
 #include "EntangleExtras.h"
 #include "EntangleApp.h"
+
+#include <wx/dir.h>             //Traversing function
+#include <wx/filename.h>        //File existence and permissions
+
 using namespace std;
 
 /* Header's constructor */
@@ -25,21 +29,43 @@ Header::Header(unsigned long long fsize)
     rnd.GenerateBlock(keys, 32);
 }
 
-/* ErrorTracker's methods */
+/* ErrorTracker's static variables and methods */
+wxArrayString ErrorTracker::errors;
 bool ErrorTracker::WentWrong = false;
+bool ErrorTracker::console = false;
 
 void ErrorTracker::AddError(wxString filename, wxString message)
 {
     //Producing a human-readable output
     //and pushing the result to the main list.
-    wxLogError(filename+" ("+message+")");
+    wxString info = filename+" ("+message+")";
+    if(console)
+        errors.push_back(info);
+    else
+        wxLogError(info);
     WentWrong = true;
 }
 
-bool ErrorTracker::HasIssues()      { return WentWrong; }
+bool ErrorTracker::HasIssues() { return WentWrong; }
 
-void ErrorTracker::CleanIssues()    { WentWrong = false; }
-
+void ErrorTracker::ShowIssues()
+{
+    if(HasIssues())
+    {
+        if(console)
+        {
+            cout << "Something went wrong:" << endl;
+            for(size_t i=0; i < errors.GetCount(); ++i)
+                cout << i+1 << ": " << wxString(errors[i]).ToAscii() << endl;
+        }
+        else
+        {
+            wxLogError(_("Something went wrong:"));
+            wxLog::FlushActive();
+        }
+        WentWrong = false;
+    }
+}
 
 /* DroppedFilesReceiver's methods */
 //Constructor;
@@ -53,6 +79,54 @@ bool DroppedFilesReciever::OnDropFiles(wxCoord x, wxCoord y, const wxArrayString
     return true;
 }
 
+/* ProgressDisplayer's methods */
+//Constructor
+ProgressDisplayer::ProgressDisplayer(EntangleFrame * g_frame)
+{
+    frame = g_frame;
+    text = _("Starting...");
+    current = 0; total = 0; progress = 0;
+    if(frame!=NULL) frame->UpdateProgress(progress, text);
+}
+
+//Destructor
+ProgressDisplayer::~ProgressDisplayer()
+{
+    if(frame==NULL) cout << "\r" << text + wxS("... 100%") << "\n";
+}
+
+//3 setters
+void ProgressDisplayer::SetTotal(ullong g_total) { total = g_total; }
+void ProgressDisplayer::SetText(wxString g_text)
+{
+    if(frame==NULL)
+    {
+        cout << "\r" << text + wxS("... 100%") << "\n";
+        cout << g_text + wxS("... 0%");
+    }
+    else
+        frame->UpdateProgress(progress, g_text);
+    text = g_text;
+}
+void ProgressDisplayer::IncreaseCurrent(ullong to_add)
+{
+    current+=to_add;
+    CalcProgress();
+    //Updating the progress
+    if(frame == NULL) //Console mode
+        cout << "\r" << text+wxS("... ")+ToString(progress)+wxS("%");
+    else //GUI mode
+        frame->UpdateProgress(progress);
+}
+
+//Actual progress calculator
+void ProgressDisplayer::CalcProgress()
+{
+    //Dividing by zero is a crime!
+    assert(total!=0);
+    progress = (double)current/total*100;
+    if(progress > 100) progress = 100;
+}
 
 /* EntangleSink's Put2() method */
 //Function which accepts data from AES/GCM and writes to the file
@@ -179,5 +253,6 @@ T& Array<T>::operator[] (unsigned long Index)
 {
     assert(Index>=0);
     assert(Index<m_size);
+    assert(data!=NULL);
     return data[Index];
 }

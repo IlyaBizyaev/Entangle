@@ -47,12 +47,17 @@ class ErrorTracker
 public:
     //Constructor
     ErrorTracker() {   }
+    void SetConsoleMode() { console = true; }
     //Adds error to the log
     void AddError(wxString filename, wxString message);
-    //Methods that work with WentWrong variable
-    bool HasIssues(); void CleanIssues();
+    //Checks for issues
+    bool HasIssues();
+    //Shows all errors (GUI or console)
+    void ShowIssues();
 private:
+    static wxArrayString errors;
     static bool WentWrong;
+    static bool console;
 };
 
 /* A simple class which accepts dropped files */
@@ -65,6 +70,27 @@ public:
     bool OnDropFiles(wxCoord x, wxCoord y, const wxArrayString &filenames);
 private:
     EntangleFrame * dialog; //Pointer to the dialog, needed to refresh the StaticText
+};
+
+/* Encapsulates displaying progress (no matter - GUI or terminal) */
+class ProgressDisplayer
+{
+public:
+    //Constructor and destructor
+    ProgressDisplayer(EntangleFrame * g_frame = NULL);
+    ~ProgressDisplayer();
+    //3 setters
+    void SetTotal(ullong g_total);
+    void SetText(wxString g_text);
+    void IncreaseCurrent(ullong current);
+    //Actual calculator
+    void CalcProgress();
+private:
+    //NULL in console mode
+    EntangleFrame * frame;
+    wxString text;
+    ullong current, total;
+    int progress;
 };
 
 /* A simple wrapper for C++ file streams */
@@ -134,17 +160,21 @@ public:
         catch(...)
         {
             cout << "Could not allocate " << size << " bytes." << endl;
+            data = NULL; m_size = 0;
         }
     }
     //Typecast operator
-    operator T*() { return data; }
+    operator T*() { assert(data!=NULL); return data; }
     //Subscript operator
     T& operator[] (unsigned long Index);
     //Destructor
-    ~Array() { delete[] data; }
+    ~Array() { if(data!=NULL) delete[] data; }
 private:
     T * data;
     unsigned long m_size;
 };
+
+//A function that traverses the path array (expands all paths)
+wxArrayString Traverse (wxArrayString & input);
 
 #endif // ENTANGLE_EXTRAS_H

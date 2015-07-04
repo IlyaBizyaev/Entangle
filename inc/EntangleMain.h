@@ -26,35 +26,34 @@ class Entangle
             static Entangle OnlyInstance;
             return OnlyInstance;
         }
-        //Constructor is private, thus this class has needs a method to be initialized
-        void Initialize(EntangleFrame * g_dialog, wxArrayString & g_tasks, wxString & password, MODE g_mode);
+        //Constructor is private, thus this class needs a method to be initialized
+        void Initialize(wxArrayString & g_tasks, wxString & g_password, MODE g_mode, ProgressDisplayer * g_pdisplay);
         //Called by the UI; runs main processing algorithm for each task
         int Process();
         //Check if header's versions matches program's one
         bool CheckHeader(Header & header, wxString & filename);
     private:
         //Making Entangle a singleton
-        Entangle() : Initialized(false), file_sizes(NULL), NumBytes(0), Total(0) {  };
+        Entangle() : Initialized(false), file_sizes(NULL) {  };
         Entangle(const Entangle&);
         const Entangle& operator=(const Entangle&);
 
         //Get file size for each file
         void GetSizes(int & NumFiles);
         //Process one file. MAIN ALGORITHM!
-        void ProcessFile(size_t task_index);
+        bool ProcessFile(size_t task_index);
         //Cleaning up after processing
         void CleanUp();
 
-        MODE mode;                  //Mode of operation
-        wxArrayString tasks;        //Task array
-        wxString password;          //User's password
-        EntangleFrame * dialog;    //Pointer to the GUI
+        MODE mode;                      //Mode of operation
+        wxArrayString tasks;            //Task array
+        wxString password;              //User's password
+        ProgressDisplayer * pdisplay;   //Needed to update current progress
 
         ErrorTracker e_track;
 
         bool Initialized;
         unsigned long long * file_sizes;
-        unsigned long long NumBytes, Total;
 };
 
 #endif // ENTANGLEMAIN_H

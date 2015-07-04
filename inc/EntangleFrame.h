@@ -10,11 +10,6 @@
 #ifndef ENTANGLEDIALOG_H
 #define ENTANGLEDIALOG_H
 
-//Enumerates two possible modes
-enum MODE {Encrypt, Decrypt};
-//Your cap.
-
-typedef unsigned long long ullong;
 
 //(*Headers(EntangleFrame)
 #include <wx/bmpbuttn.h>
@@ -26,7 +21,15 @@ typedef unsigned long long ullong;
 #include <wx/stattext.h>
 #include <wx/textctrl.h>
 //*)
+#include <wx/string.h>
 
+//Enumerates two possible modes
+enum MODE {Encrypt, Decrypt};
+//Your cap.
+
+inline wxString ToString(int number) { return wxString::FromDouble(number); }
+
+typedef unsigned long long ullong;
 
 class EntangleFrame: public wxFrame
 {
@@ -37,12 +40,10 @@ class EntangleFrame: public wxFrame
         //Adds files that were dropped onto the dialog
         void AddDropped(wxArrayString filenames);
         //Updates the displayed progress
-        void UpdateProgress(ullong & current, ullong & total, wxString show_str = wxEmptyString);
+        void UpdateProgress(int progress, wxString show_str = wxEmptyString);
 
     private:
 
-        //Joins and traverses task arrays
-        void Preprocess();
         //Updates information about tasks
         void UpdateTasks();
         //Changes text of informational lines
