@@ -21,7 +21,9 @@
 #include <wx/stattext.h>
 #include <wx/textctrl.h>
 //*)
+
 #include <wx/string.h>
+#include <wx/panel.h>
 
 //Enumerates two possible modes
 enum MODE {Encrypt, Decrypt};
@@ -70,6 +72,7 @@ class EntangleFrame: public wxFrame
         //*)
 
         //(*Declarations(EntangleFrame)
+        wxPanel* panel;
         wxProgressDialog* ProgressDialog1;
         wxGenericDirCtrl* GenericDirCtrl1;
         wxButton* Button1;
