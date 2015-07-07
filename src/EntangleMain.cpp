@@ -14,8 +14,7 @@
 #include <climits>              //Maximum values
 #include <cassert>              //Assertions
 #include <wx/filename.h>        //File existence and permissions
-#include <wx/dir.h>
-#include <wx/log.h>
+#include <wx/dir.h>             //Traversing function
 
 #include <cryptopp/aes.h>       //AES algorithm
 #include <cryptopp/gcm.h>       //AES/GCM mode
@@ -33,6 +32,7 @@ bool SmartRemove(wxString & path);
 bool Shred(wxString & path);
 //Helper functions
 bool CheckHeader(Header & header, wxString & filename);
+wxArrayString Traverse (wxArrayString & input);
 //For emergencies
 void GoodFinish(BinFile&, BinFile&);
 /** --------------------------------------- **/
@@ -45,7 +45,6 @@ void Entangle::Initialize
 (wxArrayString & g_tasks, wxString & g_password, MODE g_mode, ProgressDisplayer * g_pdisplay)
 {
     //Copying data from GUI
-
     tasks = Traverse(g_tasks);
     password = g_password;
     mode = g_mode;
@@ -464,6 +463,7 @@ bool Entangle::CheckHeader(Header & header, wxString & filename)
     }
 }
 
+//A function that traverses the path array (expands all paths)
 wxArrayString Traverse (wxArrayString & input)
 {
     wxArrayString result;

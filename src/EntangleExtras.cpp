@@ -8,10 +8,9 @@
  **************************************************************/
 
 #include "EntangleExtras.h"
-#include "EntangleApp.h"
 
-#include <wx/dir.h>             //Traversing function
 #include <wx/filename.h>        //File existence and permissions
+#include <wx/log.h>             //Error log in GUI mode
 
 using namespace std;
 

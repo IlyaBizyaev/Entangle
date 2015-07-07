@@ -16,6 +16,7 @@
 #include <wx/progdlg.h>
 #include <wx/frame.h>
 #include <wx/sizer.h>
+#include <wx/panel.h>
 #include <wx/button.h>
 #include <wx/dirctrl.h>
 #include <wx/stattext.h>
@@ -23,7 +24,6 @@
 //*)
 
 #include <wx/string.h>
-#include <wx/panel.h>
 
 //Enumerates two possible modes
 enum MODE {Encrypt, Decrypt};
@@ -84,11 +84,10 @@ class EntangleFrame: public wxFrame
         wxBitmapButton* BitmapButton1;
         //*)
 
-        // 3 arrays for storing tasks:
+        // 2 arrays for storing tasks:
         // UI_files - chosen using DirControl
         // drop_files - dropped onto the dialog
-        // tasks - resulting array of the Preprocess() function
-        wxArrayString UI_files, drop_files, tasks;
+        wxArrayString UI_files, drop_files;
         //Required mode of operation
         MODE mode;
         //Tracking user's actions

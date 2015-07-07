@@ -174,7 +174,4 @@ private:
     unsigned long m_size;
 };
 
-//A function that traverses the path array (expands all paths)
-wxArrayString Traverse (wxArrayString & input);
-
 #endif // ENTANGLE_EXTRAS_H

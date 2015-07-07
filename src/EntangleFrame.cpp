@@ -10,10 +10,8 @@
 /** ------------ Include files ------------ **/
 #include "EntangleMain.h"
 #include "EntangleFrame.h"
-#include "EntangleApp.h"
 #include "EntangleExtras.h"
 
-#include <wx/filename.h>        //File existence and permissions
 #include <wx/aboutdlg.h>        //"About the program" dialog
 #include <wx/msgdlg.h>          //Displaying informational messages
 /** --------------------------------------- **/
@@ -61,7 +59,7 @@ EntangleFrame::EntangleFrame(wxWindow* parent,wxWindowID id)
     FlexGridSizer1 = new wxFlexGridSizer(5, 1, 0, 0);
     StaticText1 = new wxStaticText(panel, ID_STATICTEXT1, _("Choose files or folders:"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICTEXT1"));
     FlexGridSizer1->Add(StaticText1, 1, wxTOP|wxLEFT|wxRIGHT|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
-    GenericDirCtrl1 = new wxGenericDirCtrl(panel, ID_GENERICDIRCTRL1, wxEmptyString, wxDefaultPosition, wxSize(190,190), 0, wxEmptyString, 0, _T("ID_GENERICDIRCTRL1"));
+    GenericDirCtrl1 = new wxGenericDirCtrl(panel, ID_GENERICDIRCTRL1, wxEmptyString, wxDefaultPosition, wxSize(190,190), wxDIRCTRL_MULTIPLE, wxEmptyString, 0, _T("ID_GENERICDIRCTRL1"));
     FlexGridSizer1->Add(GenericDirCtrl1, 1, wxTOP|wxLEFT|wxRIGHT|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, wxDLG_UNIT(this,wxSize(5,0)).GetWidth());
     FlexGridSizer2 = new wxFlexGridSizer(2, 2, 0, 0);
     StaticText2 = new wxStaticText(panel, ID_STATICTEXT2, _("Enter the password:"), wxDefaultPosition, wxDefaultSize, wxALIGN_CENTRE, _T("ID_STATICTEXT2"));
@@ -129,8 +127,10 @@ void EntangleFrame::OnButton1Click(wxCommandEvent& WXUNUSED(event))
     //Get the password
     wxString password = TextCtrl1->GetLineText(0);
     //Join task arrays
+    wxArrayString tasks;
     tasks.insert(tasks.end(), UI_files.begin(), UI_files.end());
     tasks.insert(tasks.end(), drop_files.begin(), drop_files.end());
+    tasks.Shrink();
 
     //Set the UI to the operational mode
     SetText(2, _("Processing...")); wxTheApp->Yield();
@@ -170,8 +170,8 @@ void EntangleFrame::OnButton1Click(wxCommandEvent& WXUNUSED(event))
             text = wxString::Format(wxPLURAL("Decrypted %i file", "Decrypted %i files", NumFiles), NumFiles);
         wxMessageBox(text, _("Done!")); SetText(2, _("Done!"));
     }
-    //Clean task arrays
-    drop_files.Clear(); tasks.Clear();
+    //User should re-drop files onto the window to process them again.
+    drop_files.Clear();
     UpdateTasks();
 }
 
@@ -183,17 +183,16 @@ void EntangleFrame::OnFileReselect(wxTreeEvent& WXUNUSED(event))
 void EntangleFrame::OnLockClick(wxCommandEvent& WXUNUSED(event))
 {
     /* Reverses current mode */
-    if(mode==Decrypt)
-        BitmapButton1->SetBitmap(wxImage("./img/Encryption.png"));
-    else
+    if(mode == Encrypt)
         BitmapButton1->SetBitmap(wxImage("./img/Decryption.png"));
-    mode = (MODE)(1-(int)mode);
+    else
+        BitmapButton1->SetBitmap(wxImage("./img/Encryption.png"));
+    mode = (MODE)(1-mode);
 }
 
 void EntangleFrame::OnPasswordChange(wxCommandEvent& WXUNUSED(event))
 {
-    wxString wxpassword = TextCtrl1->GetLineText(0);
-    int length = wxpassword.length();
+    int length = TextCtrl1->GetLineText(0).length();
     PasswordTypedIn = true;
     if(!length)
     {
@@ -229,25 +228,17 @@ void EntangleFrame::UpdateTasks()
     //Get paths from the file tree
 	GenericDirCtrl1->GetPaths(UI_files);
 
-	wxString first_half, second_half, result;
-	bool chosen = !UI_files.empty(), dropped = !drop_files.empty();
-	size_t num_chosen = UI_files.size(), num_dropped = drop_files.size();
+	size_t chosen = UI_files.size(), dropped = drop_files.size();
+    TasksSelected = (chosen||dropped ? true : false);
 
-	if(chosen||dropped)
-		TasksSelected = true;
-	else
-		TasksSelected = false;
-
-	if(chosen)
-        first_half = wxString::Format(wxPLURAL("Selected %lu", "Selected %lu", num_chosen), num_chosen);
-
-	if(dropped)
-        second_half = wxString::Format(wxPLURAL("Received %lu", "Received %lu", num_dropped), num_dropped);
+    wxString first_half, second_half, result;
+    first_half = wxString::Format(wxPLURAL("Selected %lu", "Selected %lu", chosen), chosen);
+    second_half = wxString::Format(wxPLURAL("Received %lu", "Received %lu", dropped), dropped);
 
 	if(chosen && !dropped)
-		result = first_half + wxPLURAL(" object", " objects", num_chosen);
+		result = first_half + wxPLURAL(" object", " objects", chosen);
 	else if(dropped && !chosen)
-		result = second_half + wxPLURAL(" object", " objects", num_dropped);
+		result = second_half + wxPLURAL(" object", " objects", dropped);
 	else if(chosen && dropped)
 		result = first_half + wxT(", ") + second_half.MakeLower();
 	else if(!chosen && !dropped)
