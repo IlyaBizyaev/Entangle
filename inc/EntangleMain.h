@@ -13,6 +13,8 @@
 #include "EntangleFrame.h"
 #include "EntangleExtras.h"
 
+#include <vector>
+
 // Cryptography-responsible class. This is the main part of Entangle.
 // This class is defined as singleton, as there should exist only one
 // instance of it for the whole program.
@@ -30,30 +32,28 @@ class Entangle
         void Initialize(wxArrayString & g_tasks, wxString & g_password, MODE g_mode, ProgressDisplayer * g_pdisplay);
         //Called by the UI; runs main processing algorithm for each task
         int Process();
-        //Check if header's versions matches program's one
-        bool CheckHeader(Header & header, wxString & filename);
     private:
         //Making Entangle a singleton
-        Entangle() : Initialized(false), file_sizes(NULL) {  };
+        Entangle() : Initialized(false) {  };
         Entangle(const Entangle&);
         const Entangle& operator=(const Entangle&);
 
         //Get file size for each file
         void GetSizes(int & NumFiles);
+        //Check if header's versions matches program's one
+        bool CheckHeader(Header & header, wxString & filename);
         //Process one file. MAIN ALGORITHM!
         bool ProcessFile(size_t task_index);
-        //Cleaning up after processing
-        void CleanUp();
 
+        //Required data
         MODE mode;                      //Mode of operation
         wxArrayString tasks;            //Task array
         wxString password;              //User's password
         ProgressDisplayer * pdisplay;   //Needed to update current progress
 
-        ErrorTracker e_track;
-
         bool Initialized;
-        unsigned long long * file_sizes;
+        ErrorTracker e_track;
+        vector<unsigned long long> file_sizes;
 };
 
 #endif // ENTANGLEMAIN_H

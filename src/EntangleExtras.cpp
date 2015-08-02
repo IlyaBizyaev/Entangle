@@ -11,21 +11,45 @@
 
 #include <wx/filename.h>        //File existence and permissions
 #include <wx/log.h>             //Error log in GUI mode
+#include <vector>               //Storing temp filenames
 
 using namespace std;
 
 /* Header's constructor */
-Header::Header(unsigned long long fsize)
+Header::Header(unsigned long long fsize) : core_version(ENTANGLE_CORE), file_size(fsize)
 {
-    //Clean the header
-    memset(this, 0x00, sizeof(Header));
-    //Set the file size
-    file_size = fsize;
-    //Write the version of my lovely program \(^_^)/
-    core_version = ENTANGLE_CORE;
     //Generate random keys
     RandomGenerator rnd;
     rnd.GenerateBlock(keys, 32);
+}
+
+/* A cross-platform text outputting solution */
+void Write(wxString msg)
+{
+
+   #ifdef _WIN32
+
+    static HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    static bool attached = false;
+
+    if(!attached)
+    {
+        if (hStdOut == NULL) return; //Console is not available
+        //This is required in order to use the parent process' console..
+        AttachConsole((DWORD)-1); //-1 = parent process
+        attached = true;
+    }
+
+    wxScopedCharBuffer ascii = msg.ToAscii();
+    DWORD len = ascii.length();
+    WriteFile(hStdOut, (char*)ascii.data(), len, &len, NULL);
+
+   #else
+
+    cout << msg.ToAscii();
+
+   #endif // _WIN32
+
 }
 
 /* ErrorTracker's static variables and methods */
@@ -53,9 +77,9 @@ void ErrorTracker::ShowIssues()
     {
         if(console)
         {
-            cout << "Something went wrong:" << endl;
+            Write("Something went wrong:\n");
             for(size_t i=0; i < errors.GetCount(); ++i)
-                cout << i+1 << ": " << wxString(errors[i]).ToAscii() << endl;
+                Write(ToString(i+1) + ": " + wxString(errors[i]) + "\n");
         }
         else
         {
@@ -68,10 +92,10 @@ void ErrorTracker::ShowIssues()
 
 /* DroppedFilesReceiver's methods */
 //Constructor;
-DroppedFilesReciever::DroppedFilesReciever(EntangleFrame * g_dialog) { dialog = g_dialog; }
+DroppedFilesReciever::DroppedFilesReciever(EntangleFrame * g_dialog) : dialog(g_dialog) { }
 
 //Called when something is dropped onto the window
-bool DroppedFilesReciever::OnDropFiles(wxCoord x, wxCoord y, const wxArrayString &filenames)
+bool DroppedFilesReciever::OnDropFiles(wxCoord WXUNUSED(x), wxCoord WXUNUSED(y), const wxArrayString &filenames)
 {
     //Copy paths to the dialog
     dialog->AddDropped(filenames);
@@ -80,42 +104,63 @@ bool DroppedFilesReciever::OnDropFiles(wxCoord x, wxCoord y, const wxArrayString
 
 /* ProgressDisplayer's methods */
 //Constructor
-ProgressDisplayer::ProgressDisplayer(EntangleFrame * g_frame)
+ProgressDisplayer::ProgressDisplayer(EntangleFrame * frame)
+: text(_("Starting...")), current(0), total(0), progress(0)
 {
-    frame = g_frame;
-    text = _("Starting...");
-    current = 0; total = 0; progress = 0;
-    if(frame!=NULL) frame->UpdateProgress(progress, text);
-}
-
-//Destructor
-ProgressDisplayer::~ProgressDisplayer()
-{
-    if(frame==NULL) cout << "\r" << text + wxS("... 100%") << "\n";
+    HasGUI = frame==NULL ? false : true;
+    if(HasGUI)
+    {
+        ProgressDialog1 = new wxProgressDialog(_("Progress"), _("Starting..."), 100, frame);
+        ProgressDialog1->CenterOnParent();
+        ProgressDialog1->Show();
+    }
+    else
+        Write("\n"+text);
 }
 
 //3 setters
 void ProgressDisplayer::SetTotal(ullong g_total) { total = g_total; }
 void ProgressDisplayer::SetText(wxString g_text)
 {
-    if(frame==NULL)
-    {
-        cout << "\r" << text + wxS("... 100%") << "\n";
-        cout << g_text + wxS("... 0%");
-    }
+    if(HasGUI)
+        UpdateDialog(g_text);
     else
-        frame->UpdateProgress(progress, g_text);
+    {
+        Write("\r");
+        if(text!=_("Starting..."))
+            Write(text+"... 100%"+"\n");
+        Write(g_text+"... 0%");
+    }
     text = g_text;
 }
+
 void ProgressDisplayer::IncreaseCurrent(ullong to_add)
 {
     current+=to_add;
     CalcProgress();
     //Updating the progress
-    if(frame == NULL) //Console mode
-        cout << "\r" << text+wxS("... ")+ToString(progress)+wxS("%");
-    else //GUI mode
-        frame->UpdateProgress(progress);
+    if(HasGUI)
+        UpdateDialog();
+    else
+       Write("\r"+text+"... "+ToString(progress)+"%");
+}
+
+//2 helpers
+void ProgressDisplayer::Done()
+{
+    if(HasGUI)
+    {
+        ProgressDialog1->Update(100, _("Done!"));
+        delete ProgressDialog1;
+    }
+    else
+        Write("\r"+text+"... 100%"+"\n");
+}
+
+void ProgressDisplayer::UpdateDialog(wxString show_str)
+{
+    ProgressDialog1->Update(progress, show_str);
+    wxYield();
 }
 
 //Actual progress calculator
@@ -133,7 +178,8 @@ size_t EntangleSink::Put2(const byte *inString, size_t length, int, bool)
 {
 	if(!inString || !length) return length;
 	//Writing the data
-	output.write(inString, length);
+	assert(output.is_open());
+	output.write(inString, length, true);
 	return 0;
 }
 
@@ -225,7 +271,7 @@ wxString RandomGenerator::RandTempName(wxString location)
         //Random filename length (1 - 20):
         int length = RandomNumber(1, 20);
         //Creating new char buffer for the filename
-        Array<char> filename(length+1);
+        vector<char> filename(length+1);
         //Filling the array (a-z, A-Z, 0-9):
         for(int i=0; i<length; ++i)
         {
@@ -240,18 +286,36 @@ wxString RandomGenerator::RandTempName(wxString location)
         //Writing zero character to the end
         filename[length] = '\0';
         //Building the full path
-        temp_name = location + wxString(filename);
+        temp_name = location + wxString(filename.data());
     } while(wxFileExists(temp_name));
     //Returning filename and finishing
     return temp_name;
 }
 
-/* Array's methods */
-template<typename T>
-T& Array<T>::operator[] (unsigned long Index)
+/* ByteArray's methods */
+//Constructor
+ByteArray::ByteArray(unsigned long size)
 {
-    assert(Index>=0);
-    assert(Index<m_size);
+    try
+    {
+        data = new byte[size];
+        m_size = size;
+    }
+    catch(...)
+    {
+        cout << "Could not allocate " << size << " bytes." << endl;
+        data = NULL; m_size = 0;
+    }
+}
+
+//Destructor
+ByteArray::~ByteArray()
+{
+    if(data!=NULL) delete[] data;
+}
+
+ByteArray::operator byte*()
+{
     assert(data!=NULL);
-    return data[Index];
+    return data;
 }

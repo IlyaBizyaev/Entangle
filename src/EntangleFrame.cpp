@@ -45,8 +45,7 @@ BEGIN_EVENT_TABLE(EntangleFrame,wxFrame)
 END_EVENT_TABLE()
 
 /* Window constructor and destructor */
-//wxDIRCTRL_MULTIPLE
-EntangleFrame::EntangleFrame(wxWindow* parent,wxWindowID id)
+EntangleFrame::EntangleFrame(wxWindow* parent,wxWindowID id) : mode(Encrypt), TasksSelected(false), PasswordTypedIn(false)
 {
     //(*Initialize(wxFramerFrame)
     wxFlexGridSizer* FlexGridSizer1;
@@ -97,10 +96,6 @@ EntangleFrame::EntangleFrame(wxWindow* parent,wxWindowID id)
     GenericDirCtrl1->UnselectAll();
     //Set event processor for GenericDirControl
     Bind(wxEVT_DIRCTRL_SELECTIONCHANGED, &EntangleFrame::OnFileReselect, this, ID_GENERICDIRCTRL1);
-    //Set default mode
-    mode = Encrypt;
-    //Nothing is yet done ;)
-    TasksSelected = false; PasswordTypedIn = false;
 }
 
 EntangleFrame::~EntangleFrame()
@@ -134,12 +129,9 @@ void EntangleFrame::OnButton1Click(wxCommandEvent& WXUNUSED(event))
 
     //Set the UI to the operational mode
     SetText(2, _("Processing...")); wxTheApp->Yield();
-    ProgressDialog1 = new wxProgressDialog(_("Progress"), _("Starting..."), 100, this);
-    ProgressDialog1->CenterOnParent();
-    ProgressDialog1->Show();
 
+    //Creating a progress dialog
     ProgressDisplayer pdisplay(this);
-
     //Getting a link to the Entangle singleton
     Entangle& eInst = Entangle::Instance();
     //Initializing it
@@ -151,8 +143,8 @@ void EntangleFrame::OnButton1Click(wxCommandEvent& WXUNUSED(event))
     int NumFiles = eInst.Process();
     //Yeah, that's all (^_^)
 
-    //Close the ProgressDialog
-    ProgressDialog1->Update(100, _("Done!"));
+    //Closing the ProgressDialog
+    pdisplay.Done();
 
     //Check if there were any problems during processing
     if(e_track.HasIssues())
@@ -214,7 +206,7 @@ void EntangleFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
 {
     wxAboutDialogInfo aboutInfo;
     aboutInfo.SetName("Entangle");
-    aboutInfo.SetVersion("0.9.2");
+    aboutInfo.SetVersion("0.9.3");
     aboutInfo.SetDescription(_("Simple and user-friendly application\nfor AES-based data encryption"));
     aboutInfo.SetCopyright("(C) Ilya Bizyaev <bizyaev@lyceum62.ru>, 2015");
     aboutInfo.SetWebSite("http://entangle.ucoz.net");

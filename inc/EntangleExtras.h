@@ -20,7 +20,7 @@
 /** --------------------------------------- **/
 
 /** ------------- Definitions ------------- **/
-#define ENTANGLE_CORE 3
+#define ENTANGLE_CORE 4
 #define BUF_SIZE 16384
 #define TAG_SIZE 16
 /** --------------------------------------- **/
@@ -29,17 +29,20 @@ using namespace std;
 using namespace CryptoPP;
 
 
-//My lovely structures ^_^
-
 /* Header; written to encrypted files before main data */
 struct Header
 {
+    //Constructors
     Header() {   }
     Header(unsigned long long file_size);
+    //Data
     int core_version;                   /* Header format version */
     unsigned long long file_size;       /* Size of original file */
     byte keys[32];                      /* AES-256 key storage area */
 };
+
+/* A cross-platform text outputting solution */
+void Write(wxString msg);
 
 /* ErrorTracker; operates errors */
 class ErrorTracker
@@ -76,18 +79,22 @@ private:
 class ProgressDisplayer
 {
 public:
-    //Constructor and destructor
-    ProgressDisplayer(EntangleFrame * g_frame = NULL);
-    ~ProgressDisplayer();
+    //Constructor
+    ProgressDisplayer(EntangleFrame * frame = NULL);
     //3 setters
     void SetTotal(ullong g_total);
     void SetText(wxString g_text);
     void IncreaseCurrent(ullong current);
+    //2 helpers
+    void UpdateDialog(wxString text = wxEmptyString);
+    void Done();
     //Actual calculator
     void CalcProgress();
 private:
+    bool HasGUI;
     //NULL in console mode
-    EntangleFrame * frame;
+    wxProgressDialog * ProgressDialog1;
+    //Data to display
     wxString text;
     ullong current, total;
     int progress;
@@ -142,35 +149,21 @@ private:
     static AutoSeededRandomPool rnd;
 };
 
-/* A simple array class template that performs dynamic */
-/* memory management and casting to (T*), which allows */
-/* to use it as a usual array. */
-template <typename T>
-class Array
+/* A simple array class that performs dynamic memory  */
+/* management and casting to (byte*), which allows to */
+/* use it as a usual array. */
+class ByteArray
 {
 public:
     //Constructor
-    Array(unsigned long size)
-    {
-        try
-        {
-            data = new T[size];
-            m_size = size;
-        }
-        catch(...)
-        {
-            cout << "Could not allocate " << size << " bytes." << endl;
-            data = NULL; m_size = 0;
-        }
-    }
-    //Typecast operator
-    operator T*() { assert(data!=NULL); return data; }
-    //Subscript operator
-    T& operator[] (unsigned long Index);
+    ByteArray(unsigned long size);
     //Destructor
-    ~Array() { if(data!=NULL) delete[] data; }
+    ~ByteArray();
+    //Typecast operator
+    operator byte*();
+
 private:
-    T * data;
+    byte * data;
     unsigned long m_size;
 };
 

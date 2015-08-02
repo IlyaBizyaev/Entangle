@@ -20,6 +20,7 @@ class EntangleApp : public wxApp
         virtual bool OnInit();
         virtual void OnInitCmdLine(wxCmdLineParser& parser);
         virtual bool OnCmdLineParsed(wxCmdLineParser& parser);
+        virtual int OnRun();
     private:
         wxLanguage m_lang;
         wxLocale m_locale;
@@ -41,6 +42,6 @@ static const wxCmdLineEntryDesc g_cmdLineDesc [] =
      { wxCMD_LINE_NONE }
 };
 
-DECLARE_APP(EntangleApp);
+DECLARE_APP(EntangleApp)
 
 #endif // ENTANGLEAPP_H

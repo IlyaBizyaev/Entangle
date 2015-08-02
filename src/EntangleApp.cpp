@@ -14,7 +14,7 @@
 #include "EntangleMain.h"
 //*)
 
-IMPLEMENT_APP(EntangleApp);
+IMPLEMENT_APP(EntangleApp)
 
 bool EntangleApp::OnInit()
 {
@@ -62,7 +62,7 @@ void EntangleApp::OnInitCmdLine(wxCmdLineParser& parser)
     parser.SetDesc (g_cmdLineDesc);
     // must refuse '/' as parameter starter or cannot use "/path" style paths
     parser.SetSwitchChars (wxT("-"));
-    parser.SetLogo(wxS("Entangle v.0.9.2"));
+    parser.SetLogo(wxS("Entangle v.0.9.3"));
 }
 
 bool EntangleApp::OnCmdLineParsed(wxCmdLineParser& parser)
@@ -80,7 +80,7 @@ bool EntangleApp::OnCmdLineParsed(wxCmdLineParser& parser)
     }
     else //Only one option is specified
     {
-        cout << "You should specify BOTH password and mode!" << endl;
+        Write("You should specify BOTH password and mode!\n");
         return false;
     }
 
@@ -89,7 +89,7 @@ bool EntangleApp::OnCmdLineParsed(wxCmdLineParser& parser)
     MODE e_mode;
     if(mode!="encryption"&&mode!="decryption")
     {
-        cout << "Invalid mode specified." << endl;
+        Write("Invalid mode specified.\n");
         return false;
     }
     else if(mode == "encryption")
@@ -99,7 +99,7 @@ bool EntangleApp::OnCmdLineParsed(wxCmdLineParser& parser)
 
     if(!parser.GetParamCount())
     {
-        cout << "No tasks specified." << endl;
+        Write("No tasks specified.\n");
         return false;
     }
 
@@ -118,13 +118,21 @@ bool EntangleApp::OnCmdLineParsed(wxCmdLineParser& parser)
     eInst.Initialize(tasks, password, e_mode, &pdisplay);
 
     int NumFiles = eInst.Process();
-    cout << endl << "Processed " << NumFiles << endl;
+    pdisplay.Done();
+    Write("Processed "+ToString(NumFiles)+"\n");
     if(e_track.HasIssues())
     {
         e_track.ShowIssues();
-        exit(-1);
+        return false;
     }
 
-    exit(0);
     return true;
+}
+
+int EntangleApp::OnRun()
+{
+    if(console_mode)
+        return 0;
+    else
+        return wxApp::OnRun();
 }

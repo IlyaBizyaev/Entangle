@@ -24,7 +24,7 @@
 
 /** -------------- Functions -------------- **/
 //Cryptography
-void DeriveKey(byte * key, wxString & password, byte * iv);
+void DeriveKey(byte key[], size_t key_size, byte iv[], size_t iv_size, wxString & password);
 void AddTail(BinFile & target);
 //File functions
 unsigned long long GetFileSize(wxString & path);
@@ -33,8 +33,9 @@ bool Shred(wxString & path);
 //Helper functions
 bool CheckHeader(Header & header, wxString & filename);
 wxArrayString Traverse (wxArrayString & input);
+inline void MultipleAndRemainder(ullong number, ullong dividor, ullong & multiple, ullong & remain);
 //For emergencies
-void GoodFinish(BinFile&, BinFile&);
+void EmergencyFinish(BinFile&, BinFile&);
 /** --------------------------------------- **/
 
 using namespace std;
@@ -63,7 +64,7 @@ int Entangle::Process()
     //Get file size of each task
     GetSizes(NumFiles);
     /* PROCESSING THE TASKS */
-    for(size_t task_index = 0; task_index<tasks.GetCount(); ++task_index)
+    for(size_t task_index = 0; task_index < tasks.GetCount(); ++task_index)
     {
         if(tasks[task_index]!="SKIP")
         {
@@ -71,15 +72,16 @@ int Entangle::Process()
                 ++NumFiles;
         }
     }
-    CleanUp();
+    //Force the caller to re-initialize
+    Initialized = false;
+
     return NumFiles;
 }
 
 void Entangle::GetSizes(int & NumFiles)
 {
      /* GETTING FILE SIZES */
-    assert(file_sizes==NULL);
-    file_sizes = new unsigned long long[tasks.size()];
+    file_sizes.resize(tasks.size());
     unsigned long long fsize, total = 0;
     for(size_t i=0; i<tasks.GetCount(); ++i)
     {
@@ -103,19 +105,6 @@ void Entangle::GetSizes(int & NumFiles)
     pdisplay->SetTotal(total);
 }
 
-//Cleaning up after processing
-void Entangle::CleanUp()
-{
-    //Deallocate array with file sizes
-    if(file_sizes!=NULL)
-    {
-        delete[] file_sizes;
-        file_sizes = NULL;
-    }
-    //Force the caller to re-initialize
-    Initialized = false;
-}
-
 /* Main function */
 bool Entangle::ProcessFile(size_t task_index)
 {
@@ -127,7 +116,7 @@ bool Entangle::ProcessFile(size_t task_index)
     wxString temp_path = rnd.RandTempName(fname.GetPath(wxPATH_GET_VOLUME | wxPATH_GET_SEPARATOR));
 
     //Required variables
-    unsigned long long fsize, checker, dleft;
+    unsigned long long fsize, multiple, remains;
     /** Opening files **/
     //Opening original file
     BinFile In(name, ios_base::in);
@@ -142,21 +131,23 @@ bool Entangle::ProcessFile(size_t task_index)
     if(!Out.is_open())
     {
         //Can't open the output file
-        GoodFinish(In, Out);
+        EmergencyFinish(In, Out);
         e_track.AddError(name, _("Cannot create an output file"));
         return false;
     }
+
     /** <<<<<<< MOST IMPORTANT PART >>>>>>> **/
+    byte key[16], iv[16];
 
     if(mode == Encrypt)
     {
         /** ENCRYPTION **/
         pdisplay->SetText(_("Encrypting ") + fname.GetFullName());
-        //Creating, generating and writing the IV
-        RandomGenerator rnd; byte iv[16];
-        rnd.GenerateBlock(iv, sizeof(iv)); Out.write(iv, 16);
+        //Generating and writing the IV
+        rnd.GenerateBlock(iv, sizeof(iv));
+        Out.write(iv, sizeof(iv), true);
         //Deriving the key
-        byte key[16]; DeriveKey(key, password, iv); //TODO: Make key a return value
+        DeriveKey(key, sizeof(key), iv, sizeof(iv), password);
         //Getting file size
         fsize = file_sizes[task_index];
         //Creating the Entangle header
@@ -169,7 +160,7 @@ bool Entangle::ProcessFile(size_t task_index)
             //New AES Encryption object
             GCM<AES>::Encryption e;
             //Setting user key and random IV
-            e.SetKeyWithIV(key, 16, iv, sizeof(iv));
+            e.SetKeyWithIV(key, sizeof(key), iv, sizeof(iv));
             //Filter with an EntangleSink
             AuthenticatedEncryptionFilter ef(e,
             new EntangleSink(Out), false, TAG_SIZE);
@@ -180,57 +171,52 @@ bool Entangle::ProcessFile(size_t task_index)
         catch(CryptoPP::BufferedTransformation::NoChannelSupport& e)
         {
             // The tag must go in to the default channel
-            error_text = "NO_CH_SUPPORT";
+            error_text = wxString("NO_CH_SUPPORT: ") + e.what();
         }
         catch(CryptoPP::AuthenticatedSymmetricCipher::BadState& e)
         {
-            // TODO: Get more info about this.
-            error_text = "BAD_STATE";
+            error_text = wxString("BAD_STATE:") + e.what();
         }
         catch(CryptoPP::InvalidArgument& e)
         {
-            error_text = "INVALID_ARGUMENT";
+            error_text = wxString("INV_ARGUMENT: ") + e.what();
         }
         catch(...)
         {
-            //Unknown exception
             error_text = _("Unknown exception");
         }
 
         if(!error_text.empty())
         {
             e_track.AddError(name, error_text);
-            GoodFinish(In, Out);
+            EmergencyFinish(In, Out);
             return false;
         }
 
-        /** ENCRYPTING THE VERY FILE **/
+        /** ENCRYPTING THE FILE **/
         GCM<AES>::Encryption gcmEncrypt;
-        gcmEncrypt.SetKeyWithIV(MakeHeader.keys, 32, iv);
+        gcmEncrypt.SetKeyWithIV(MakeHeader.keys, 32, iv, sizeof(iv));
 
         AuthenticatedEncryptionFilter gcm_f(gcmEncrypt,
         new EntangleSink(Out), false, TAG_SIZE);
 
-        Array<byte> transfer(BUF_SIZE);
-        dleft = fsize%BUF_SIZE;
-        checker = fsize-dleft;
+        ByteArray buffer(BUF_SIZE);
+        MultipleAndRemainder(fsize, BUF_SIZE, multiple, remains);
 
-        //THE VERY PROCESS
-        for(unsigned long i=0; i<checker; i+=BUF_SIZE)
+        for(unsigned long i=0; i<multiple; i+=BUF_SIZE)
         {
-            In.read(transfer, BUF_SIZE);
-            gcm_f.ChannelPut("", transfer, BUF_SIZE);
+            In.read(buffer, BUF_SIZE);
+            gcm_f.ChannelPut("", buffer, BUF_SIZE);
             pdisplay->IncreaseCurrent(BUF_SIZE);
         }
-        if(dleft!=0)
+        if(remains!=0)
         {
-            In.read(transfer, dleft);
-            gcm_f.ChannelPut("", transfer, dleft);
-            pdisplay->IncreaseCurrent(dleft);
+            In.read(buffer, remains);
+            gcm_f.ChannelPut("", buffer, remains);
+            pdisplay->IncreaseCurrent(remains);
         }
 
         gcm_f.MessageEnd();
-
         AddTail(Out);
     }
     else
@@ -238,20 +224,20 @@ bool Entangle::ProcessFile(size_t task_index)
         /** DECRYPTION **/
         pdisplay->SetText(_("Decrypting ") + fname.GetFullName());
         //Reading the IV
-        byte iv[16];  In.read(iv, 16);
-        //Reserving space for retrieved header
-        Header DecryptedHeader;
+        In.read(iv, sizeof(iv));
         //Deriving the key
-        byte key[16]; DeriveKey(key, password, iv);
+        DeriveKey(key, sizeof(key), iv, sizeof(iv), password);
+        //Reserving space for retrieved header
+        Header DecryptedHeader; bool GoodHeader = false;
         //If something goes wrong, this line gets error text.
-        wxString error_text; bool GoodHeader = false;
+        wxString error_text;
         try
         {
             /** ----- Working with header ----- **/
             //New AES Decryption object
             GCM<AES>::Decryption d;
             //Setting key and IV
-            d.SetKeyWithIV(key, 16, iv, sizeof(iv));
+            d.SetKeyWithIV(key, sizeof(key), iv, sizeof(iv));
             //Reserving space for header and MAC and reading them
             byte head_and_tag[64]; In.read(head_and_tag, 64);
             //Creating new Decryption filter
@@ -259,33 +245,32 @@ bool Entangle::ProcessFile(size_t task_index)
                 AuthenticatedDecryptionFilter::MAC_AT_END |
                 AuthenticatedDecryptionFilter::THROW_EXCEPTION, TAG_SIZE);
             //Putting the decrypted header to the filter
-            df.ChannelPut("", (const byte*)&head_and_tag, 64);
+            df.ChannelPut("", head_and_tag, 64);
             //If the object throws, it most likely occurs here
             df.ChannelMessageEnd("");
 
             //Get data from channel
             df.SetRetrievalChannel("");
-            size_t n = (size_t)df.MaxRetrievable();
-            if(n != sizeof(Header))
+            if((size_t)df.MaxRetrievable() != sizeof(Header))
             {
                 e_track.AddError(name, _("Incorrect header size"));
-                GoodFinish(In, Out);
+                EmergencyFinish(In, Out);
                 return false;
             }
-            df.Get((byte*)&DecryptedHeader, n);
+            df.Get((byte*)&DecryptedHeader, sizeof(Header));
 
             /** Comparing cores **/
             if(CheckHeader(DecryptedHeader, name))
                 GoodHeader = true;
             else
             {
-                GoodFinish(In, Out);
+                EmergencyFinish(In, Out);
                 return false;
             }
 
             /** ----- Decrypting the very file ----- **/
             GCM<AES>::Decryption gcmDecrypt;
-            gcmDecrypt.SetKeyWithIV(DecryptedHeader.keys, 32, iv);
+            gcmDecrypt.SetKeyWithIV(DecryptedHeader.keys, 32, iv, sizeof(iv));
 
             AuthenticatedDecryptionFilter gcm_f(gcmDecrypt,
                 new EntangleSink(Out),
@@ -293,27 +278,26 @@ bool Entangle::ProcessFile(size_t task_index)
                 AuthenticatedDecryptionFilter::THROW_EXCEPTION, TAG_SIZE);
 
 
-            Array<byte> transfer(BUF_SIZE);
+            ByteArray buffer(BUF_SIZE);
             fsize = DecryptedHeader.file_size;
-            dleft = fsize % BUF_SIZE;
-            checker = fsize - dleft;
+            MultipleAndRemainder(fsize, BUF_SIZE, multiple, remains);
 
             //THE VERY PROCESS
-            for(unsigned long i=0; i<checker; i+=BUF_SIZE)
+            for(unsigned long i=0; i<multiple; i+=BUF_SIZE)
             {
-                In.read(transfer, BUF_SIZE);
-                gcm_f.ChannelPut("", transfer, BUF_SIZE);
+                In.read(buffer, BUF_SIZE);
+                gcm_f.ChannelPut("", buffer, BUF_SIZE);
                 pdisplay->IncreaseCurrent(BUF_SIZE);
             }
-            if(dleft!=0)
+            if(remains!=0)
             {
-                In.read(transfer, dleft);
-                gcm_f.ChannelPut("", transfer, dleft);
-                pdisplay->IncreaseCurrent(dleft);
+                In.read(buffer, remains);
+                gcm_f.ChannelPut("", buffer, remains);
+                pdisplay->IncreaseCurrent(remains);
             }
 
-            In.read(transfer, TAG_SIZE);
-            gcm_f.ChannelPut("", transfer, TAG_SIZE);
+            In.read(buffer, TAG_SIZE);
+            gcm_f.ChannelPut("", buffer, TAG_SIZE);
 
             gcm_f.MessageEnd();
 
@@ -343,12 +327,13 @@ bool Entangle::ProcessFile(size_t task_index)
         if(!error_text.empty())
         {
             e_track.AddError(name, error_text);
-            GoodFinish(In, Out);
+            EmergencyFinish(In, Out);
             return false;
         }
 
     }
     /** <<<<<<< FINISHED MAIN PART >>>>>>> **/
+
     In.close(); Out.close();
 
     if(mode == Encrypt) Shred(name);
@@ -368,19 +353,19 @@ void AddTail(BinFile & target)
     /** Adding random 'tail' **/
     RandomGenerator rnd;
     int tail_size = rnd.RandomNumber(1, 50);
-    Array<byte> tail(tail_size);
+    ByteArray tail(tail_size);
     rnd.GenerateBlock(tail, tail_size);
     target.write(tail, tail_size);
 }
 
-void DeriveKey(byte * key, wxString & password, byte * iv)
+void DeriveKey(byte key[], size_t key_size, byte iv[], size_t iv_size, wxString & password)
 {
     /** Deriving a key from password **/
     //Convert password to UTF-8
     wxCharBuffer cbuff = password.mb_str(wxMBConvUTF8());
     //Derive the key
     PKCS5_PBKDF2_HMAC<SHA512> KeyDeriver;
-    KeyDeriver.DeriveKey(key, 16, (byte)0, (byte*)cbuff.data(), cbuff.length(), iv, 16, 1);
+    KeyDeriver.DeriveKey(key, key_size, (byte)0, (byte*)cbuff.data(), cbuff.length(), iv, iv_size, 1);
 }
 
 /* File functions */
@@ -404,10 +389,10 @@ bool SmartRemove(wxString & path)
     //if read-only, make writable
     if(!wxFileName::IsFileWritable(path))
     {
-        wxFileName fname(path); if(!fname.IsOk()) return false;
+        wxFileName fname(path);
+        if(!fname.IsOk()) return false;
         //Setting read-write permissions
-        int permissions = wxS_IRUSR | wxS_IWUSR;
-        fname.SetPermissions(permissions);
+        fname.SetPermissions(wxS_IRUSR | wxS_IWUSR);
     }
     //Removing
     if(wxRemoveFile(path)) return true;
@@ -423,9 +408,9 @@ bool Shred(wxString & path)
     BinFile target(path, ios_base::out);
     if(!target.is_open()) return false;
     //Making some preparations
-    unsigned long long dleft, checker;
-    dleft = fsize % BUF_SIZE; checker = fsize - dleft;
-    Array<byte> buffer(BUF_SIZE);
+    unsigned long long multiple, remains;
+    MultipleAndRemainder(fsize, BUF_SIZE, multiple, remains);
+    ByteArray buffer(BUF_SIZE);
     RandomGenerator rnd;
     /**--------------------------------------------**/
     for(int iteration = 0; iteration < 10; ++iteration)
@@ -435,10 +420,10 @@ bool Shred(wxString & path)
         //Moving to the beginning
         if(!target.seek_start()) return false;
         //Overwriting the data
-        for(unsigned int i=0; i<checker; i+=BUF_SIZE)
+        for(unsigned int i=0; i<multiple; i+=BUF_SIZE)
             target.write(buffer, BUF_SIZE);
         //Ensure that the data was written, not cached
-        target.write(buffer, dleft, true);
+        target.write(buffer, remains, true);
     }
     /**--------------------------------------------**/
     //Closing the file
@@ -487,8 +472,14 @@ wxArrayString Traverse (wxArrayString & input)
     return result;
 }
 
+inline void MultipleAndRemainder(ullong number, ullong dividor, ullong & multiple, ullong & remains)
+{
+    remains = number % dividor;
+    multiple = number - remains;
+}
+
 /* For emergencies */
-void GoodFinish(BinFile & In, BinFile & Out)
+void EmergencyFinish(BinFile & In, BinFile & Out)
 {
     //Checking whether any files are open.
     //If so, closing them.
