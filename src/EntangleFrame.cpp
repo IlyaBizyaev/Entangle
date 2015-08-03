@@ -136,8 +136,6 @@ void EntangleFrame::OnButton1Click(wxCommandEvent& WXUNUSED(event))
     Entangle& eInst = Entangle::Instance();
     //Initializing it
     eInst.Initialize(tasks, password, mode, &pdisplay);
-    //Creating an error tracker
-    ErrorTracker e_track;
 
     //Calling the Entangle's processing method.
     int NumFiles = eInst.Process();
@@ -147,11 +145,11 @@ void EntangleFrame::OnButton1Click(wxCommandEvent& WXUNUSED(event))
     pdisplay.Done();
 
     //Check if there were any problems during processing
-    if(e_track.HasIssues())
+    if(ErrorTracker::HasIssues())
     {
         //If it is so, show them to the user
         SetText(2, _("Went wrong :("));
-        e_track.ShowIssues();
+        ErrorTracker::ShowIssues();
     }
     else
     {
@@ -245,12 +243,6 @@ void EntangleFrame::AddDropped(wxArrayString filenames)
     drop_files.insert(drop_files.end(), filenames.begin(), filenames.end());
     //Update the UI
     UpdateTasks();
-}
-
-void EntangleFrame::UpdateProgress(int progress, wxString show_str)
-{
-    ProgressDialog1->Update(progress, show_str);
-    wxTheApp->Yield();
 }
 
 void EntangleFrame::SetText(int line, wxString message)

@@ -16,7 +16,7 @@
 class EntangleApp : public wxApp
 {
     public:
-        EntangleApp() : m_lang(wxLANGUAGE_UNKNOWN) {  }
+        EntangleApp() : m_lang(wxLANGUAGE_UNKNOWN), console_mode(false) {  }
         virtual bool OnInit();
         virtual void OnInitCmdLine(wxCmdLineParser& parser);
         virtual bool OnCmdLineParsed(wxCmdLineParser& parser);

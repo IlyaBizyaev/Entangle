@@ -50,13 +50,13 @@ class ErrorTracker
 public:
     //Constructor
     ErrorTracker() {   }
-    void SetConsoleMode() { console = true; }
+    static void SetConsoleMode() { console = true; }
     //Adds error to the log
-    void AddError(wxString filename, wxString message);
+    static void AddError(wxString filename, wxString message);
     //Checks for issues
-    bool HasIssues();
+    static bool HasIssues();
     //Shows all errors (GUI or console)
-    void ShowIssues();
+    static void ShowIssues();
 private:
     static wxArrayString errors;
     static bool WentWrong;
@@ -105,12 +105,12 @@ class BinFile
 {
 public:
     BinFile(wxString & filename, ios_base::openmode file_mode);
-    wxString GetName();
+    wxString GetName() const;
     void open(wxString & filename, ios_base::openmode file_mode);
     bool seek_start();
     bool read(byte* data, int size);
     bool write(const byte* data, int size, bool flush = false);
-    bool is_open(); void close(); ~BinFile();
+    bool is_open() const; void close(); ~BinFile();
 
 private:
     fstream cfile;

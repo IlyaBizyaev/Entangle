@@ -41,8 +41,6 @@ class EntangleFrame: public wxFrame
         virtual ~EntangleFrame();
         //Adds files that were dropped onto the dialog
         void AddDropped(wxArrayString filenames);
-        //Updates the displayed progress
-        void UpdateProgress(int progress, wxString show_str = wxEmptyString);
 
     private:
 

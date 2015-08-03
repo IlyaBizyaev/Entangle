@@ -96,7 +96,7 @@ void Entangle::GetSizes(int & NumFiles)
         if(fsize==ULLONG_MAX) //If GetFileSize() went wrong
         {
             tasks[i]="SKIP";
-            e_track.AddError(tasks[i], _("Cannot access"));
+            ErrorTracker::AddError(tasks[i], _("Cannot access"));
             continue;
         }
         file_sizes[i] = fsize;
@@ -123,7 +123,7 @@ bool Entangle::ProcessFile(size_t task_index)
     if(!In.is_open())
     {
         //Can't open the input file
-        e_track.AddError(name, _("Cannot open the input file"));
+        ErrorTracker::AddError(name, _("Cannot open the input file"));
         return false;
     }
     //Opening the temp file
@@ -132,7 +132,7 @@ bool Entangle::ProcessFile(size_t task_index)
     {
         //Can't open the output file
         EmergencyFinish(In, Out);
-        e_track.AddError(name, _("Cannot create an output file"));
+        ErrorTracker::AddError(name, _("Cannot create an output file"));
         return false;
     }
 
@@ -188,7 +188,7 @@ bool Entangle::ProcessFile(size_t task_index)
 
         if(!error_text.empty())
         {
-            e_track.AddError(name, error_text);
+            ErrorTracker::AddError(name, error_text);
             EmergencyFinish(In, Out);
             return false;
         }
@@ -253,7 +253,7 @@ bool Entangle::ProcessFile(size_t task_index)
             df.SetRetrievalChannel("");
             if((size_t)df.MaxRetrievable() != sizeof(Header))
             {
-                e_track.AddError(name, _("Incorrect header size"));
+                ErrorTracker::AddError(name, _("Incorrect header size"));
                 EmergencyFinish(In, Out);
                 return false;
             }
@@ -326,7 +326,7 @@ bool Entangle::ProcessFile(size_t task_index)
 
         if(!error_text.empty())
         {
-            e_track.AddError(name, error_text);
+            ErrorTracker::AddError(name, error_text);
             EmergencyFinish(In, Out);
             return false;
         }
@@ -341,7 +341,7 @@ bool Entangle::ProcessFile(size_t task_index)
     if(!wxRenameFile(temp_path, name))
     {
         //If can`t rename
-        e_track.AddError(name, _("Cannot rename the result"));
+        ErrorTracker::AddError(name, _("Cannot rename the result"));
         return false;
     }
     return true;
@@ -441,9 +441,9 @@ bool Entangle::CheckHeader(Header & header, wxString & filename)
     {
         //The core is newer and the user needs an upgrade (^_^)
         if(that_core > ENTANGLE_CORE)
-            e_track.AddError(filename, _("Requires newer program version"));
+            ErrorTracker::AddError(filename, _("Requires newer program version"));
         else //The core is older, an outdated version is needed.
-            e_track.AddError(filename, _("Was encrypted by older version"));
+            ErrorTracker::AddError(filename, _("Was encrypted by older version"));
         return false;
     }
 }
@@ -458,8 +458,7 @@ wxArrayString Traverse (wxArrayString & input)
         /* If the object does not exist */
         if(!wxFileName::Exists(input[pos]))
         {
-            ErrorTracker e_track;
-            e_track.AddError(input[pos], _("Does not exist"));
+            ErrorTracker::AddError(input[pos], _("Does not exist"));
             continue;
         }
 

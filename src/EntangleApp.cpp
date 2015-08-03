@@ -74,10 +74,7 @@ bool EntangleApp::OnCmdLineParsed(wxCmdLineParser& parser)
     if(got_password && got_mode) //Console mode
         console_mode = true;
     else if(!got_password&&!got_mode) //GUI mode
-    {
-        console_mode = false;
         return true;
-    }
     else //Only one option is specified
     {
         Write("You should specify BOTH password and mode!\n");
@@ -92,10 +89,8 @@ bool EntangleApp::OnCmdLineParsed(wxCmdLineParser& parser)
         Write("Invalid mode specified.\n");
         return false;
     }
-    else if(mode == "encryption")
-        e_mode = Encrypt;
     else
-        e_mode = Decrypt;
+        e_mode = mode == "encryption" ? Encrypt : Decrypt;
 
     if(!parser.GetParamCount())
     {
@@ -105,12 +100,11 @@ bool EntangleApp::OnCmdLineParsed(wxCmdLineParser& parser)
 
     // Getting files to process
     wxArrayString tasks;
-    for(size_t i = 0; i < parser.GetParamCount(); i++)
+    for(size_t i = 0; i < parser.GetParamCount(); ++i)
         tasks.Add(parser.GetParam(i));
 
     ProgressDisplayer pdisplay;
-    ErrorTracker e_track;
-    e_track.SetConsoleMode();
+    ErrorTracker::SetConsoleMode();
 
     //Getting a link to the Entangle singleton
     Entangle& eInst = Entangle::Instance();
@@ -120,9 +114,9 @@ bool EntangleApp::OnCmdLineParsed(wxCmdLineParser& parser)
     int NumFiles = eInst.Process();
     pdisplay.Done();
     Write("Processed "+ToString(NumFiles)+"\n");
-    if(e_track.HasIssues())
+    if(ErrorTracker::HasIssues())
     {
-        e_track.ShowIssues();
+        ErrorTracker::ShowIssues();
         return false;
     }
 

@@ -41,7 +41,7 @@ class Entangle
         //Get file size for each file
         void GetSizes(int & NumFiles);
         //Check if header's versions matches program's one
-        bool CheckHeader(Header & header, wxString & filename);
+        static bool CheckHeader(Header & header, wxString & filename);
         //Process one file. MAIN ALGORITHM!
         bool ProcessFile(size_t task_index);
 
@@ -52,7 +52,6 @@ class Entangle
         ProgressDisplayer * pdisplay;   //Needed to update current progress
 
         bool Initialized;
-        ErrorTracker e_track;
         vector<unsigned long long> file_sizes;
 };
 

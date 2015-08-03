@@ -196,7 +196,7 @@ BinFile::BinFile(wxString & filename, ios_base::openmode file_mode)
 //Destructor, calls close()
 BinFile::~BinFile() { close(); }
 
-wxString BinFile::GetName()
+wxString BinFile::GetName() const
 {
     if(IsOk)
         return name;
@@ -242,7 +242,7 @@ bool BinFile::write(const byte* data, int size, bool flush)
 }
 
 //Checks the status
-bool BinFile::is_open() { return IsOk; }
+bool BinFile::is_open() const { return IsOk; }
 
 //Closes the file
 void BinFile::close() { cfile.close(); }
