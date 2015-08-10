@@ -15,6 +15,7 @@
 #include <cassert>              //Assertions
 #include <wx/filename.h>        //File existence and permissions
 #include <wx/dir.h>             //Traversing function
+#include <wx/utils.h>           //Showing spinner when shredding big files
 
 #include <cryptopp/aes.h>       //AES algorithm
 #include <cryptopp/gcm.h>       //AES/GCM mode
@@ -29,7 +30,7 @@ void AddTail(BinFile & target);
 //File functions
 unsigned long long GetFileSize(wxString & path);
 bool SmartRemove(wxString & path);
-bool Shred(wxString & path);
+bool Shred(wxString & path, bool show_spinner = false);
 //Helper functions
 bool CheckHeader(Header & header, wxString & filename);
 wxArrayString Traverse (wxArrayString & input);
@@ -336,7 +337,8 @@ bool Entangle::ProcessFile(size_t task_index)
 
     In.close(); Out.close();
 
-    if(mode == Encrypt) Shred(name);
+    if(mode == Encrypt)
+        Shred(name, task_index == tasks.size()-1 ? true : false);
     SmartRemove(name);
     if(!wxRenameFile(temp_path, name))
     {
@@ -400,7 +402,7 @@ bool SmartRemove(wxString & path)
     return false;
 }
 
-bool Shred(wxString & path)
+bool Shred(wxString & path, bool show_spinner)
 {
     //Getting file size
     unsigned long long fsize = GetFileSize(path);
@@ -412,6 +414,7 @@ bool Shred(wxString & path)
     MultipleAndRemainder(fsize, BUF_SIZE, multiple, remains);
     ByteArray buffer(BUF_SIZE);
     RandomGenerator rnd;
+    if(show_spinner) wxBeginBusyCursor();
     /**--------------------------------------------**/
     for(int iteration = 0; iteration < 10; ++iteration)
     {
@@ -424,8 +427,11 @@ bool Shred(wxString & path)
             target.write(buffer, BUF_SIZE);
         //Ensure that the data was written, not cached
         target.write(buffer, remains, true);
+        //For big files
+        wxYield();
     }
     /**--------------------------------------------**/
+    if(show_spinner) wxEndBusyCursor();
     //Closing the file
     target.close();
     return true;
