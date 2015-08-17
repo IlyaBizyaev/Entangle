@@ -115,17 +115,17 @@ msgstr "Щось трапилось не так:"
 #, c-format
 msgid "Decrypted %i file"
 msgid_plural "Decrypted %i files"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "Дешифрований %i файл"
+msgstr[1] "Дешифровано %i файла"
+msgstr[2] "Дешифровано %i файлів"
 
 #: ../EntangleMain.cpp:446
 #, c-format
 msgid "Encrypted %i file"
 msgid_plural "Encrypted %i files"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "Зашифровано %i файл"
+msgstr[1] "Зашифровано %i файла"
+msgstr[2] "Зашифровано %i файлів"
 
 #: ../EntangleMain.cpp:478 ../EntangleMain.cpp:480
 msgid "Good"
@@ -159,24 +159,24 @@ msgstr "Немає дозволу"
 #, c-format
 msgid "Selected %lu"
 msgid_plural "Selected %lu"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "Обрано %lu"
+msgstr[1] "Обрані %lu"
+msgstr[2] "Оюрані %lu"
 
 #: ../EntangleMain.cpp:699
 #, c-format
 msgid "Received %lu"
 msgid_plural "Received %lu"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "Отримано %lu"
+msgstr[1] "Отримані %lu"
+msgstr[2] "Отримані %lu"
 
 #: ../EntangleMain.cpp:702 ../EntangleMain.cpp:704
 msgid " object"
 msgid_plural " objects"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "об’єкт"
+msgstr[1] "об’єкта"
+msgstr[2] "об’єктів"
 
 #: ../EntangleMain.cpp:744
 msgid "Requires newer program version"
