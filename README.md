@@ -1,7 +1,10 @@
-# Entangle
-![Entangle Logo](http://entangle.ucoz.net/ReDesigned.png)
+# Entangle v. 0.9
+![Entangle Logo](http://entangle.ucoz.net/text_logo.png)
 
-![Windows](http://entangle.ucoz.net/windows_screenshot.jpg) ![Ubuntu](http://entangle.ucoz.net/ubuntu_screenshot.png)
+![Screenshot](http://entangle.ucoz.net/Screenshots/Entangle_0.9.png)
+
+[![Build Status](https://travis-ci.org/IlyaBizyaev/Entangle.svg?branch=unstable)](https://travis-ci.org/IlyaBizyaev/Entangle)
+
 ## Description
 Entangle is a simple application, designed to help users protect their private and personal data in a few clicks.
 Entangle is built using wxWidgets and Crypto++ libraries, which makes it cross-platform.
@@ -40,8 +43,8 @@ Please notify me if you want to use this code in any projects.
 
 ...**doublemax** for the progress bar.
 
-...**Jean-Pierre Münch**, **Jeffrey Walton** ans **Mobile Mouse** for help with the encryption.
+...**Jean-Pierre Münch**, **Jeffrey Walton** and **Mobile Mouse** for help with the encryption.
 
-...**RostakaGmfun** for a better Linux makefile.
+...**RostakaGmfun** for improving the Makefile and Ukrainian translation.
 ## Copyright
 Copyright (C) Ilya Bizyaev <bizyaev@lyceum62.ru>, 2015.
