@@ -161,7 +161,7 @@ msgid "Selected %lu"
 msgid_plural "Selected %lu"
 msgstr[0] "Обрано %lu"
 msgstr[1] "Обрані %lu"
-msgstr[2] "Оюрані %lu"
+msgstr[2] "Обрані %lu"
 
 #: ../EntangleMain.cpp:699
 #, c-format
