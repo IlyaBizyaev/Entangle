@@ -1,15 +1,16 @@
 /***************************************************************
  * Name:      EntangleFrame.h
  * Purpose:   Defines the user interface
- * Author:    Ilya Bizyaev (bizyaev.game@yandex.ru)
+ * Author:    Ilya Bizyaev (bizyaev@lyceum62.ru)
  * Created:   2015-01-01
- * Copyright: Ilya Bizyaev (utor.ucoz.ru)
+ * Copyright: Ilya Bizyaev
  * License:   GNU GPL v3
  **************************************************************/
 
 #ifndef ENTANGLEDIALOG_H
 #define ENTANGLEDIALOG_H
 
+#include "extras/Encryption.h"
 
 //(*Headers(EntangleFrame)
 #include <wx/bmpbuttn.h>
@@ -23,73 +24,68 @@
 #include <wx/textctrl.h>
 //*)
 
-#include <wx/string.h>
-
-//Enumerates two possible modes
-enum MODE {Encrypt, Decrypt};
-//Your cap.
-
-inline wxString ToString(int number) { return wxString::FromDouble(number); }
-
-typedef unsigned long long ullong;
+enum {TASKS, HINT};
 
 class EntangleFrame: public wxFrame
 {
     public:
-        //Constructor and destructor (wxSmith)
-        EntangleFrame(wxWindow* parent,wxWindowID id = -1);
-        virtual ~EntangleFrame();
+        //Constructor and destructor
+        EntangleFrame(wxWindow* parent, UserData data, wxWindowID id = -1);
         //Adds files that were dropped onto the dialog
-        void AddDropped(wxArrayString filenames);
+        void AddDropped(const wxArrayString & filenames);
 
     private:
-
+        //Called to locate and load icons
+        void LoadImages();
         //Updates information about tasks
         void UpdateTasks();
         //Changes text of informational lines
-        void SetText(int line, wxString message);
+        void SetText(int line, const wxString & message);
 
         //(*Handlers(EntangleFrame)
-        void OnAbout(wxCommandEvent& event);
-        void OnButton1Click(wxCommandEvent& event);
+        void OnAboutButtonClick(wxCommandEvent& event);
+        void OnStartButtonClick(wxCommandEvent& event);
         void OnLockClick(wxCommandEvent& event);
         void OnPasswordChange(wxCommandEvent& event);
         void OnFileReselect(wxTreeEvent& event);
         //*)
 
         //(*Identifiers(EntangleFrame)
-        static const long ID_STATICTEXT1;
-        static const long ID_GENERICDIRCTRL1;
-        static const long ID_STATICTEXT2;
-        static const long ID_STATICTEXT3;
-        static const long ID_TEXTCTRL1;
-        static const long ID_BITMAPBUTTON1;
-        static const long ID_BUTTON2;
-        static const long ID_BUTTON1;
+        static const long ID_TASKTEXT;
+        static const long ID_PASSWORDHINT;
+        static const long ID_MODETEXT;
+        static const long ID_PASSWORD;
+        static const long ID_STARTBUTTON;
+        static const long ID_ABOUTBUTTON;
+        static const long ID_MODESWITCHER;
+        static const long ID_FILESELECTOR;
         static const long ID_PROGRESSDIALOG1;
         //*)
 
         //(*Declarations(EntangleFrame)
+        wxFlexGridSizer* FlexGridSizer1;
+        wxFlexGridSizer* FlexGridSizer2;
+        wxBoxSizer* BoxSizer1;
         wxPanel* panel;
-        wxProgressDialog* ProgressDialog1;
-        wxGenericDirCtrl* GenericDirCtrl1;
-        wxButton* Button1;
-        wxStaticText* StaticText1;
-        wxButton* AboutButton;
-        wxStaticText* StaticText3;
+        wxStaticText* TaskText;
+        wxStaticText* PasswordHint;
+        wxStaticText* ModeText;
         wxTextCtrl* TextCtrl1;
-        wxStaticText* StaticText2;
-        wxBitmapButton* BitmapButton1;
+        wxButton* AboutButton;
+        wxButton* StartButton;
+        wxBitmapButton* ModeSwitcher;
+        wxGenericDirCtrl* FileSelector;
+        wxProgressDialog* ProgressDialog1;
         //*)
 
         // 2 arrays for storing tasks:
         // UI_files - chosen using DirControl
-        // drop_files - dropped onto the dialog
-        wxArrayString UI_files, drop_files;
-        //Required mode of operation
+        // received_files - selected in a different way
+        wxArrayString UI_files, received_files;
+        //Icons that indicate selected mode
+        wxImage ui_img[2];
+        //Selected mode of operation
         MODE mode;
-        //Tracking user's actions
-        bool TasksSelected, PasswordTypedIn;
 
         DECLARE_EVENT_TABLE()
 };

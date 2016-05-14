@@ -1,21 +1,20 @@
 /***************************************************************
  * Name:      EntangleMain.cpp
  * Purpose:   Cryptography
- * Author:    Ilya Bizyaev (bizyaev.game@yandex.ru)
+ * Author:    Ilya Bizyaev (bizyaev@lyceum62.ru)
  * Created:   2015-06-23
- * Copyright: Ilya Bizyaev (utor.ucoz.ru)
+ * Copyright: Ilya Bizyaev
  * License:   GNU GPL v3
  **************************************************************/
 
 /** ------------ Include files ------------ **/
 #include "EntangleMain.h"
-#include "EntangleExtras.h"
 
-#include <climits>              //Maximum values
+#include <climits>              //Maximum variable values
 #include <cassert>              //Assertions
-#include <wx/filename.h>        //File existence and permissions
-#include <wx/dir.h>             //Traversing function
-#include <wx/utils.h>           //Showing spinner when shredding big files
+
+#include <wx/wfstream.h>        //File streams
+#include <wx/zipstrm.h>         //Working with ZIP
 
 #include <cryptopp/aes.h>       //AES algorithm
 #include <cryptopp/gcm.h>       //AES/GCM mode
@@ -24,149 +23,291 @@
 /** --------------------------------------- **/
 
 /** -------------- Functions -------------- **/
-//Cryptography
-void DeriveKey(byte key[], size_t key_size, byte iv[], size_t iv_size, wxString & password);
+void DeriveKey(ByteArray & key, ByteArray & iv, wxString & password);
 void AddTail(BinFile & target);
-//File functions
-unsigned long long GetFileSize(wxString & path);
-bool SmartRemove(wxString & path);
-bool Shred(wxString & path, bool show_spinner = false);
-//Helper functions
-bool CheckHeader(Header & header, wxString & filename);
-wxArrayString Traverse (wxArrayString & input);
-inline void MultipleAndRemainder(ullong number, ullong dividor, ullong & multiple, ullong & remain);
-//For emergencies
-void EmergencyFinish(BinFile&, BinFile&);
 /** --------------------------------------- **/
 
 using namespace std;
 using namespace CryptoPP;
 
+Entangle::Entangle(UserData & udata, EntangleFrame * frame) : u(udata),
+progress(Progress(frame)), a(Asker(frame != NULL)) { }
 
-void Entangle::Initialize
-(wxArrayString & g_tasks, wxString & g_password, MODE g_mode, ProgressDisplayer * g_pdisplay)
+/** Compression and decompression **/
+bool Entangle::Compress(bool remove)
 {
-    //Copying data from GUI
-    tasks = Traverse(g_tasks);
-    password = g_password;
-    mode = g_mode;
-    pdisplay = g_pdisplay;
+    //There archive may be big => let the user choose the destination
+    wxString archive_path = a.WhereToSave()+wxFileName::GetPathSeparator()+wxNow()+".zip";
+    //On Windows, filenames cannot conatin the ":" character.
+    #ifdef _WIN32
+    bool has_volume = wxFileName(archive_path).HasVolume();
+    archive_path.Replace(":", ".");
+    //But the path *may* contain this char in a volume name.
+    if(has_volume)
+        archive_path.Replace(".", ":", false);
+    #endif // _WIN32
+    //Creating the output. Its name is the current data (useful for backups)
+    wxFFileOutputStream out(archive_path);
+    if(!out.IsOk())
+    {
+        Issues::Add(_("Cannot create an output file"), archive_path);
+        return false;
+    }
+    wxZipOutputStream zip(out);
+    if(!zip.IsOk())
+    {
+        Issues::Add(_("Cannot create an output file"), archive_path);
+        return false;
+    }
+    //Special entry to somehow recognize that it's not just an archive
+    zip.PutNextEntry("encrypted_by_entangle");
+    //Notifying about the start
+    progress.Start();
+    GetSizes();
+    for(size_t i=0; i<u.tasks.GetCount(); ++i)
+    {
+        wxString fname = u.tasks[i];
+        if(fname=="SKIP") continue;
+        zip.PutNextEntry(fname);
+        {
+            wxFileInputStream in(fname);
+            if(!in.IsOk())
+            {
+                Issues::Add(_("Cannot open an input file"), fname);
+                return false;
+            }
+            progress.SetText(_("Compressing ")+fname);
+            zip.Write(in);
+        }
+        if(remove) wxRemoveFile(fname);
+        progress.Increase(file_sizes[i]);
+        wxYield();
+    }
+    zip.Close();
 
-    //Now initialized.
-    Initialized = true;
+    //Removing empty directories (if left)
+    if(remove)
+        for(size_t i=0; i<u.dirs.GetCount(); ++i)
+	    {
+            //By wxFileName's logics, there should be a trailing
+            //separator at the end of directory's path.
+            if(!u.dirs[i].EndsWith(wxFileName::GetPathSeparator()))
+                u.dirs[i]+=wxFileName::GetPathSeparator();
+            wxFileName::Rmdir(u.dirs[i], wxPATH_RMDIR_FULL);
+	    }
+
+
+    //Previous tasks do not exist any more
+    u.tasks.Clear(); file_sizes.clear();
+    //But now we need to encrypt the archive
+    u.tasks.push_back(archive_path);
+    progress.Finish(true);
+    return true;
 }
 
-int Entangle::Process()
+/* Checks for the special archive entry */
+bool Entangle::IsDecompressionNeeded(wxString & fname)
 {
-    //Ensure that the class is initialized
-    assert(Initialized);
-    //Cleaning the counters
-    int NumFiles = 0;
-    //Get file size of each task
-    GetSizes(NumFiles);
-    /* PROCESSING THE TASKS */
-    for(size_t task_index = 0; task_index < tasks.GetCount(); ++task_index)
+    wxFFileInputStream arc(fname);
+    if(!arc.IsOk())
     {
-        if(tasks[task_index]!="SKIP")
+        Issues::Add(_("Cannot open an input file"), fname);
+        return false;
+    }
+    wxZipInputStream zip(arc);
+    if(!zip.IsOk())
+    {
+        Issues::Add(_("Cannot open an input file"), fname);
+        return false;
+    }
+
+    unique_ptr<wxZipEntry> entry(zip.GetNextEntry());
+    wxString first_entry = entry->GetName();
+    //If found, should be decompressed!
+    if(first_entry=="encrypted_by_entangle")
+        return true;
+    //Otherwise
+    return false;
+}
+
+bool Entangle::Decompress(wxString & arc_name)
+{
+    //Let the user choose whether to remove the original files.
+    bool remove = a.Ask(_("Remove the archive?"));
+    //This code block is needed to call wxFFileInputStream's destructor.
+    {
+        //Opening the archive for reading
+        wxFFileInputStream arc(arc_name);
+        if(!arc.IsOk())
         {
-            if(ProcessFile(task_index))
-                ++NumFiles;
+            Issues::Add(_("Cannot open an input file"), arc_name);
+            return false;
+        }
+        wxZipInputStream zip(arc);
+        if(!zip.IsOk())
+        {
+            Issues::Add(_("Cannot open an input file"), arc_name);
+            return false;
+        }
+
+        unique_ptr<wxZipEntry> entry(zip.GetNextEntry());
+
+        ByteArray buffer(BUF_SIZE);
+
+        //Depending on the system, we may either need to just add a slash
+        //or to ask where to save the unpacked files.
+        #ifdef _WIN32
+        wxString location = a.WhereToSave();
+        #else
+        wxString location = "/";
+        #endif // _WIN32
+
+
+        //For each entry
+        while(entry.reset(zip.GetNextEntry()), entry.get() != NULL)
+        {
+            wxString fname = location + entry->GetName();
+            //Creating directory where the file was located before compression
+            wxFileName(fname).Mkdir(wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
+            //Creating the file
+            wxFileOutputStream out(fname);
+            if(!out.IsOk())
+            {
+                Issues::Add(_("Cannot create an output file"), fname);
+                return false;
+            }
+
+            progress.SetText(_("Decompressing ")+fname);
+
+            float compress_ratio = double(entry->GetCompressedSize())/entry->GetSize();
+
+            BlockReader rdr(entry->GetSize());
+            do
+            {
+                zip.Read(buffer, rdr.block_size());
+                if(!zip.LastRead())
+                {
+                    Issues::Add(_("Failed to read an entry"), fname);
+                    return false;
+                }
+                progress.Increase(compress_ratio*rdr.block_size());
+                out.Write(buffer, rdr.block_size());
+            } while(rdr.next());
+            wxYield();
+            out.Close();
         }
     }
-    //Force the caller to re-initialize
-    Initialized = false;
+    if(remove) wxRemoveFile(arc_name);
+    return true;
+}
 
+/** Called from outside the class **/
+int Entangle::Process()
+{
+    /** Compression (if >200 files were selected for encryption) **/
+    if(u.mode==Encrypt&&u.tasks.GetCount()>200)
+    {
+        if(a.Ask(_("More than 200 files were selected. Compress?")))
+        {
+            //Let the user choose whether to remove the original files.
+            bool remove = a.Ask(_("Remove the original files?"));
+            //Suggest to proceed without compression if failed
+            if(!Compress(remove))
+            {
+                Issues::Show();
+                progress.Finish(false);
+                if(!a.Ask(_("Compression failed. Continue without compression?")))
+                    return 0;
+            }
+        }
+    }
+
+    /** Encryption / decryption **/
+    //Notifying about the start
+    progress.Start();
+    //Get file size of each task
+    int NumFiles = GetSizes();
+
+    for(size_t i = 0; i < u.tasks.GetCount(); ++i)
+        if(u.tasks[i]!="SKIP" && ProcessFile(i))
+            ++NumFiles;
+    progress.Finish(true);
+
+    /** Decompression (for encrypted ZIPs) **/
+    if(!to_decompress.IsEmpty())
+    {
+        //Get file size of each task
+        u.tasks.Clear();
+        u.tasks.insert(u.tasks.begin(), to_decompress.begin(), to_decompress.end());
+        to_decompress.Clear();
+        GetSizes();
+        //Notifying about the start
+        progress.Start();
+
+        for(size_t i = 0; i < u.tasks.GetCount(); ++i)
+            if(!Decompress(u.tasks[i]))
+                Issues::Add(_("Failed to decompress"), u.tasks[i]);
+        progress.Finish(true);
+    }
     return NumFiles;
 }
 
-void Entangle::GetSizes(int & NumFiles)
-{
-     /* GETTING FILE SIZES */
-    file_sizes.resize(tasks.size());
-    unsigned long long fsize, total = 0;
-    for(size_t i=0; i<tasks.GetCount(); ++i)
-    {
-        fsize = GetFileSize(tasks[i]);
-        //Processing exceptions
-        if(fsize==0) //Empty file
-        {
-            tasks[i]="SKIP";
-            ++NumFiles;
-            continue;
-        }
-        if(fsize==ULLONG_MAX) //If GetFileSize() went wrong
-        {
-            tasks[i]="SKIP";
-            ErrorTracker::AddError(tasks[i], _("Cannot access"));
-            continue;
-        }
-        file_sizes[i] = fsize;
-        total+=fsize;
-    }
-    pdisplay->SetTotal(total);
-}
 
-/* Main function */
+/** Main function **/
 bool Entangle::ProcessFile(size_t task_index)
 {
-    //Preparing name for temp file
-    wxString name = tasks[task_index];
-    wxFileName fname(name);
+    wxString name = u.tasks[task_index], error_text;
+    wxString temp_path = RNG::TempName(name);
+    Issues::SetFile(name);
 
-    RandomGenerator rnd;
-    wxString temp_path = rnd.RandTempName(fname.GetPath(wxPATH_GET_VOLUME | wxPATH_GET_SEPARATOR));
+    ullong fsize=0; Header head;
 
-    //Required variables
-    unsigned long long fsize, multiple, remains;
     /** Opening files **/
     //Opening original file
     BinFile In(name, ios_base::in);
     if(!In.is_open())
     {
-        //Can't open the input file
-        ErrorTracker::AddError(name, _("Cannot open the input file"));
+        Issues::Add(_("Cannot open an input file")+": "+ In.why_failed());
         return false;
     }
-    //Opening the temp file
+    //Opening a temporary file
     BinFile Out(temp_path, ios_base::out|ios_base::trunc);
     if(!Out.is_open())
     {
-        //Can't open the output file
-        EmergencyFinish(In, Out);
-        ErrorTracker::AddError(name, _("Cannot create an output file"));
+        Issues::Add(_("Cannot create an output file")+": " + Out.why_failed());
         return false;
     }
 
-    /** <<<<<<< MOST IMPORTANT PART >>>>>>> **/
-    byte key[16], iv[16];
+    //For the constants, see extras/Data.h
+    static ByteArray key(HEAD_KEY_SIZE), iv(IV_SIZE), buffer(BUF_SIZE);
 
-    if(mode == Encrypt)
+    /** <<<<<<<<<<<< MAIN PART >>>>>>>>>>>> **/
+
+    if(u.mode == Encrypt)
     {
         /** ENCRYPTION **/
-        pdisplay->SetText(_("Encrypting ") + fname.GetFullName());
+        progress.SetText(_("Encrypting ") + name);
         //Generating and writing the IV
-        rnd.GenerateBlock(iv, sizeof(iv));
-        Out.write(iv, sizeof(iv), true);
+        RNG::GenerateBlock(iv, iv.size());
+        Out.write(iv, iv.size());
         //Deriving the key
-        DeriveKey(key, sizeof(key), iv, sizeof(iv), password);
+        DeriveKey(key, iv, u.password);
         //Getting file size
         fsize = file_sizes[task_index];
-        //Creating the Entangle header
-        Header MakeHeader(fsize);
+        head.file_size = fsize;
 
         /** Encrypting and writing the header **/
-        wxString error_text;
         try
         {
             //New AES Encryption object
             GCM<AES>::Encryption e;
             //Setting user key and random IV
-            e.SetKeyWithIV(key, sizeof(key), iv, sizeof(iv));
+            e.SetKeyWithIV(key, key.size(), iv, iv.size());
             //Filter with an EntangleSink
             AuthenticatedEncryptionFilter ef(e,
             new EntangleSink(Out), false, TAG_SIZE);
-            //Encrypting MakeHeader
-            ef.ChannelPut("", (const byte*)&MakeHeader, sizeof(MakeHeader));
+            //Encrypting the new header
+            ef.ChannelPut("", (const byte*)&head, sizeof(head));
             ef.ChannelMessageEnd("");
         }
         catch(CryptoPP::BufferedTransformation::NoChannelSupport& e)
@@ -176,7 +317,7 @@ bool Entangle::ProcessFile(size_t task_index)
         }
         catch(CryptoPP::AuthenticatedSymmetricCipher::BadState& e)
         {
-            error_text = wxString("BAD_STATE:") + e.what();
+            error_text = wxString("BAD_STATE: ") + e.what();
         }
         catch(CryptoPP::InvalidArgument& e)
         {
@@ -189,113 +330,128 @@ bool Entangle::ProcessFile(size_t task_index)
 
         if(!error_text.empty())
         {
-            ErrorTracker::AddError(name, error_text);
-            EmergencyFinish(In, Out);
+            Issues::Add(error_text);
+            Out.remove();
             return false;
         }
 
-        /** ENCRYPTING THE FILE **/
+        /** Encrypting the file **/
         GCM<AES>::Encryption gcmEncrypt;
-        gcmEncrypt.SetKeyWithIV(MakeHeader.keys, 32, iv, sizeof(iv));
+        gcmEncrypt.SetKeyWithIV(head.key, KEY_SIZE, iv, iv.size());
 
         AuthenticatedEncryptionFilter gcm_f(gcmEncrypt,
         new EntangleSink(Out), false, TAG_SIZE);
 
-        ByteArray buffer(BUF_SIZE);
-        MultipleAndRemainder(fsize, BUF_SIZE, multiple, remains);
+        BlockReader rdr(fsize);
 
-        for(unsigned long i=0; i<multiple; i+=BUF_SIZE)
+        do
         {
-            In.read(buffer, BUF_SIZE);
-            gcm_f.ChannelPut("", buffer, BUF_SIZE);
-            pdisplay->IncreaseCurrent(BUF_SIZE);
-        }
-        if(remains!=0)
-        {
-            In.read(buffer, remains);
-            gcm_f.ChannelPut("", buffer, remains);
-            pdisplay->IncreaseCurrent(remains);
-        }
+            if(!In.read(buffer, rdr.block_size()))
+            {
+                Issues::Add(In.why_failed());
+                Out.remove();
+                return false;
+            }
+            gcm_f.ChannelPut("", buffer, rdr.block_size());
+            if(EntangleSink::write_failed())
+            {
+                Issues::Add(_("Does not exist"), Out.GetPath());
+                return false;
+            }
+            progress.Increase(rdr.block_size());
+        } while(rdr.next());
 
         gcm_f.MessageEnd();
+
+        //Ensuring that the encrypted file has proper size
+        Out.flush();
+        if(Out.size()!=(fsize+IV_SIZE+sizeof(Header)+(TAG_SIZE<<1)))
+        {
+            Issues::Add(_("Encrypted file has wrong size"));
+            Out.remove();
+            return false;
+        }
+
         AddTail(Out);
     }
     else
     {
         /** DECRYPTION **/
-        pdisplay->SetText(_("Decrypting ") + fname.GetFullName());
-        //Reading the IV
-        In.read(iv, sizeof(iv));
-        //Deriving the key
-        DeriveKey(key, sizeof(key), iv, sizeof(iv), password);
+        progress.SetText(_("Decrypting ") + name);
+        In.read(iv, iv.size());
+        DeriveKey(key, iv, u.password);
         //Reserving space for retrieved header
-        Header DecryptedHeader; bool GoodHeader = false;
-        //If something goes wrong, this line gets error text.
-        wxString error_text;
+        bool GoodHeader = false;
         try
         {
             /** ----- Working with header ----- **/
             //New AES Decryption object
             GCM<AES>::Decryption d;
             //Setting key and IV
-            d.SetKeyWithIV(key, sizeof(key), iv, sizeof(iv));
+            d.SetKeyWithIV(key, key.size(), iv, iv.size());
             //Reserving space for header and MAC and reading them
-            byte head_and_tag[64]; In.read(head_and_tag, 64);
+            ByteArray headntag(sizeof(Header)+TAG_SIZE);
+            In.read(headntag, headntag.size());
             //Creating new Decryption filter
             AuthenticatedDecryptionFilter df(d, NULL,
                 AuthenticatedDecryptionFilter::MAC_AT_END |
                 AuthenticatedDecryptionFilter::THROW_EXCEPTION, TAG_SIZE);
             //Putting the decrypted header to the filter
-            df.ChannelPut("", head_and_tag, 64);
-            //If the object throws, it most likely occurs here
+            df.ChannelPut("", headntag, headntag.size());
+            //Exceptions most likely occur here
             df.ChannelMessageEnd("");
 
             //Get data from channel
             df.SetRetrievalChannel("");
             if((size_t)df.MaxRetrievable() != sizeof(Header))
             {
-                ErrorTracker::AddError(name, _("Incorrect header size"));
-                EmergencyFinish(In, Out);
+                Issues::Add(_("Incorrect header size"));
+                Out.remove();
                 return false;
             }
-            df.Get((byte*)&DecryptedHeader, sizeof(Header));
+            df.Get((byte*)&head, sizeof(Header));
 
             /** Comparing cores **/
-            if(CheckHeader(DecryptedHeader, name))
+            if(CheckHeader(head))
                 GoodHeader = true;
             else
             {
-                EmergencyFinish(In, Out);
+                Out.remove();
                 return false;
             }
+            fsize = head.file_size;
 
-            /** ----- Decrypting the very file ----- **/
+            /** ----- Decrypting the file ----- **/
             GCM<AES>::Decryption gcmDecrypt;
-            gcmDecrypt.SetKeyWithIV(DecryptedHeader.keys, 32, iv, sizeof(iv));
+            gcmDecrypt.SetKeyWithIV(head.key, KEY_SIZE, iv, iv.size());
 
             AuthenticatedDecryptionFilter gcm_f(gcmDecrypt,
                 new EntangleSink(Out),
                 AuthenticatedDecryptionFilter::MAC_AT_END |
                 AuthenticatedDecryptionFilter::THROW_EXCEPTION, TAG_SIZE);
 
+            BlockReader rdr(fsize);
 
-            ByteArray buffer(BUF_SIZE);
-            fsize = DecryptedHeader.file_size;
-            MultipleAndRemainder(fsize, BUF_SIZE, multiple, remains);
-
-            //THE VERY PROCESS
-            for(unsigned long i=0; i<multiple; i+=BUF_SIZE)
+            do
             {
-                In.read(buffer, BUF_SIZE);
-                gcm_f.ChannelPut("", buffer, BUF_SIZE);
-                pdisplay->IncreaseCurrent(BUF_SIZE);
-            }
-            if(remains!=0)
-            {
-                In.read(buffer, remains);
-                gcm_f.ChannelPut("", buffer, remains);
-                pdisplay->IncreaseCurrent(remains);
-            }
+                if(!In.read(buffer, rdr.block_size()))
+                {
+                    Issues::Add(In.why_failed());
+                    //On read error, shredding what is already
+                    //decrypted because it may contain
+                    //private information.
+                    Out.shred();
+                    Out.remove();
+                    return false;
+                }
+                gcm_f.ChannelPut("", buffer, rdr.block_size());
+                if(EntangleSink::write_failed())
+                {
+                    Issues::Add(_("Does not exist"), Out.GetPath());
+                    return false;
+                }
+                progress.Increase(rdr.block_size());
+            } while(rdr.next());
 
             In.read(buffer, TAG_SIZE);
             gcm_f.ChannelPut("", buffer, TAG_SIZE);
@@ -309,188 +465,114 @@ bool Entangle::ProcessFile(size_t task_index)
         }
         catch(CryptoPP::AuthenticatedSymmetricCipher::BadState& e)
         {
-            error_text = wxString("BAD_STATE:") + e.what();
+            error_text = wxString("BAD_STATE: ") + e.what();
         }
         catch(CryptoPP::HashVerificationFilter::HashVerificationFailed& e)
         {
-            //Caught HashVerificationFailed
-            if(GoodHeader)
-                error_text = _("The file is corrupted");
-            else
-                error_text = _("Invalid password or mode");
+            error_text = GoodHeader ? _("The file is corrupted")
+                                    : _("Invalid password or mode");
         }
         catch(...)
         {
-            //Unknown exception
             error_text = _("Unknown exception");
         }
 
         if(!error_text.empty())
         {
-            ErrorTracker::AddError(name, error_text);
-            EmergencyFinish(In, Out);
+            Issues::Add(error_text);
+            Out.remove();
+            return false;
+        }
+
+        //Ensuring that the decrypted file has the correct size
+        Out.flush();
+        if(Out.size()!=fsize)
+        {
+            Issues::Add(_("Decrypted file has wrong size"));
+            Out.remove();
             return false;
         }
 
     }
     /** <<<<<<< FINISHED MAIN PART >>>>>>> **/
 
-    In.close(); Out.close();
-
-    if(mode == Encrypt)
-        Shred(name, task_index == tasks.size()-1 ? true : false);
-    SmartRemove(name);
-    if(!wxRenameFile(temp_path, name))
+    //Shred the original file on encryption
+    if(u.mode == Encrypt)
+        In.shred(task_index == u.tasks.size()-1);
+    //Remove the input file
+    In.remove();
+    //Renaming the temp file
+    if(!Out.rename(name))
     {
-        //If can`t rename
-        ErrorTracker::AddError(name, _("Cannot rename the result"));
+        Issues::Add(_("Cannot rename the result")+": "+Out.GetPath());
         return false;
     }
+
+    if(u.mode == Decrypt)
+    {
+        //For possible compressed encryption
+        if(name.EndsWith(".zip")&&IsDecompressionNeeded(name))
+            to_decompress.push_back(name);
+    }
+
     return true;
 }
 
-/* Cryptography */
+
+/** Helpers **/
+
+/* Retrieves file sizes */
+/* Returns the number of empty files */
+int Entangle::GetSizes()
+{
+    int NumFiles=0; ullong fsize, total=0;
+    file_sizes.resize(u.tasks.size());
+
+    for(size_t i=0; i<u.tasks.GetCount(); ++i)
+    {
+        //To ensure that this file has not been processed
+        //by this function before
+        if(u.tasks[i]=="SKIP") continue;
+        //Actual size request
+        fsize = GetFileSize(u.tasks[i]);
+        //Possible exceptions
+        if(!fsize) //Empty file
+        {
+            //Don't have to process
+            u.tasks[i]="SKIP";
+            ++NumFiles;
+        }
+        else if(fsize==ULLONG_MAX) //GetFileSize() went wrong
+        {
+            Issues::Add(_("Cannot access"), u.tasks[i]);
+            u.tasks[i]="SKIP";
+        }
+        else
+        {
+            //Everything is OK
+            file_sizes[i] = fsize;
+            total+=fsize;
+        }
+    }
+    progress.SetTotal(total);
+    return NumFiles;
+}
+
+/* Simply adds a random piece of data ('tail') to the end of the file */
 void AddTail(BinFile & target)
 {
-    /** Adding random 'tail' **/
-    RandomGenerator rnd;
-    int tail_size = rnd.RandomNumber(1, 50);
+    int tail_size = RNG::RandomNumber(1, 50);
     ByteArray tail(tail_size);
-    rnd.GenerateBlock(tail, tail_size);
+    RNG::GenerateBlock(tail, tail_size);
     target.write(tail, tail_size);
 }
 
-void DeriveKey(byte key[], size_t key_size, byte iv[], size_t iv_size, wxString & password)
+/* Derives key from the user's password */
+void DeriveKey(ByteArray & key, ByteArray & iv, wxString & password)
 {
-    /** Deriving a key from password **/
     //Convert password to UTF-8
     wxCharBuffer cbuff = password.mb_str(wxMBConvUTF8());
     //Derive the key
     PKCS5_PBKDF2_HMAC<SHA512> KeyDeriver;
-    KeyDeriver.DeriveKey(key, key_size, (byte)0, (byte*)cbuff.data(), cbuff.length(), iv, iv_size, 1);
-}
-
-/* File functions */
-unsigned long long GetFileSize(wxString & path)
-{
-
-    //If file does not exist
-    if(!wxFileExists(path)) return ULLONG_MAX;
-    //Getting file size
-    wxULongLong result = wxFileName::GetSize(path);
-    //If everything is OK
-    if(result!=wxInvalidSize) return result.GetValue();
-    //Otherwise
-    return ULLONG_MAX;
-}
-
-bool SmartRemove(wxString & path)
-{
-    //If there is already no such file, terminate.
-    if(!wxFileExists(path)) return true;
-    //if read-only, make writable
-    if(!wxFileName::IsFileWritable(path))
-    {
-        wxFileName fname(path);
-        if(!fname.IsOk()) return false;
-        //Setting read-write permissions
-        fname.SetPermissions(wxS_IRUSR | wxS_IWUSR);
-    }
-    //Removing
-    if(wxRemoveFile(path)) return true;
-    //If fails, returning false.
-    return false;
-}
-
-bool Shred(wxString & path, bool show_spinner)
-{
-    //Getting file size
-    unsigned long long fsize = GetFileSize(path);
-    //Opening this file for writing
-    BinFile target(path, ios_base::out);
-    if(!target.is_open()) return false;
-    //Making some preparations
-    unsigned long long multiple, remains;
-    MultipleAndRemainder(fsize, BUF_SIZE, multiple, remains);
-    ByteArray buffer(BUF_SIZE);
-    RandomGenerator rnd;
-    if(show_spinner) wxBeginBusyCursor();
-    /**--------------------------------------------**/
-    for(int iteration = 0; iteration < 10; ++iteration)
-    {
-        //Generating random data to write
-        rnd.GenerateBlock(buffer, BUF_SIZE);
-        //Moving to the beginning
-        if(!target.seek_start()) return false;
-        //Overwriting the data
-        for(unsigned int i=0; i<multiple; i+=BUF_SIZE)
-            target.write(buffer, BUF_SIZE);
-        //Ensure that the data was written, not cached
-        target.write(buffer, remains, true);
-        //For big files
-        wxYield();
-    }
-    /**--------------------------------------------**/
-    if(show_spinner) wxEndBusyCursor();
-    //Closing the file
-    target.close();
-    return true;
-}
-
-/* Helper functions */
-bool Entangle::CheckHeader(Header & header, wxString & filename)
-{
-    int that_core = header.core_version;
-    if(that_core==ENTANGLE_CORE)
-        return true;
-    else
-    {
-        //The core is newer and the user needs an upgrade (^_^)
-        if(that_core > ENTANGLE_CORE)
-            ErrorTracker::AddError(filename, _("Requires newer program version"));
-        else //The core is older, an outdated version is needed.
-            ErrorTracker::AddError(filename, _("Was encrypted by older version"));
-        return false;
-    }
-}
-
-//A function that traverses the path array (expands all paths)
-wxArrayString Traverse (wxArrayString & input)
-{
-    wxArrayString result;
-    //For each task
-    for(size_t pos = 0; pos < input.size(); ++pos)
-    {
-        /* If the object does not exist */
-        if(!wxFileName::Exists(input[pos]))
-        {
-            ErrorTracker::AddError(input[pos], _("Does not exist"));
-            continue;
-        }
-
-		/* Checking object type */
-		if(wxDirExists(input[pos]))// If that's folder, scan all subdirectories and files inside it.
-			wxDir::GetAllFiles(input[pos], &result);
-		else//If that's file, simply push it to the vector.
-			result.push_back(input[pos]);
-    }
-    return result;
-}
-
-inline void MultipleAndRemainder(ullong number, ullong dividor, ullong & multiple, ullong & remains)
-{
-    remains = number % dividor;
-    multiple = number - remains;
-}
-
-/* For emergencies */
-void EmergencyFinish(BinFile & In, BinFile & Out)
-{
-    //Checking whether any files are open.
-    //If so, closing them.
-    if(In.is_open()) In.close();
-    if(Out.is_open()) Out.close();
-    //Removing the temp file
-    wxString temp_name = Out.GetName();
-    SmartRemove(temp_name);
+    KeyDeriver.DeriveKey(key, key.size(), (byte)0, (byte*)cbuff.data(), cbuff.length(), iv, iv.size(), 1);
 }

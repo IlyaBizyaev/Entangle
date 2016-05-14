@@ -1,23 +1,23 @@
 /***************************************************************
  * Name:      EntangleFrame.cpp
  * Purpose:   Implements the user interface
- * Author:    Ilya Bizyaev (bizyaev.game@yandex.ru)
+ * Author:    Ilya Bizyaev (bizyaev@lyceum62.ru)
  * Created:   2015-01-01
- * Copyright: Ilya Bizyaev (utor.ucoz.ru)
+ * Copyright: Ilya Bizyaev
  * License:   GNU GPL v3
  **************************************************************/
 
 /** ------------ Include files ------------ **/
-#include "EntangleMain.h"
 #include "EntangleFrame.h"
-#include "EntangleExtras.h"
+#include "EntangleMain.h"
+#include "extras/UI.h"
 
 #include <wx/aboutdlg.h>        //"About the program" dialog
 #include <wx/msgdlg.h>          //Displaying informational messages
+#include <wx/artprov.h>         //Stock replacements for images
 /** --------------------------------------- **/
 
 using namespace std;
-using namespace CryptoPP;
 
 
 //(*InternalHeaders(EntangleFrame)
@@ -28,14 +28,14 @@ using namespace CryptoPP;
 //*)
 
 //(*IdInit(EntangleFrame)
-const long EntangleFrame::ID_STATICTEXT1 = wxNewId();
-const long EntangleFrame::ID_GENERICDIRCTRL1 = wxNewId();
-const long EntangleFrame::ID_STATICTEXT2 = wxNewId();
-const long EntangleFrame::ID_STATICTEXT3 = wxNewId();
-const long EntangleFrame::ID_TEXTCTRL1 = wxNewId();
-const long EntangleFrame::ID_BITMAPBUTTON1 = wxNewId();
-const long EntangleFrame::ID_BUTTON2 = wxNewId();
-const long EntangleFrame::ID_BUTTON1 = wxNewId();
+const long EntangleFrame::ID_TASKTEXT = wxNewId();
+const long EntangleFrame::ID_PASSWORDHINT = wxNewId();
+const long EntangleFrame::ID_MODETEXT = wxNewId();
+const long EntangleFrame::ID_PASSWORD = wxNewId();
+const long EntangleFrame::ID_STARTBUTTON = wxNewId();
+const long EntangleFrame::ID_ABOUTBUTTON = wxNewId();
+const long EntangleFrame::ID_MODESWITCHER = wxNewId();
+const long EntangleFrame::ID_FILESELECTOR = wxNewId();
 const long EntangleFrame::ID_PROGRESSDIALOG1 = wxNewId();
 //*)
 
@@ -44,79 +44,131 @@ BEGIN_EVENT_TABLE(EntangleFrame,wxFrame)
     //*)
 END_EVENT_TABLE()
 
-/* Window constructor and destructor */
-EntangleFrame::EntangleFrame(wxWindow* parent,wxWindowID id) : mode(Encrypt), TasksSelected(false), PasswordTypedIn(false)
+/* Frame constructor */
+EntangleFrame::EntangleFrame(wxWindow* parent, UserData data, wxWindowID id) : mode(data.mode)
 {
-    //(*Initialize(wxFramerFrame)
-    wxFlexGridSizer* FlexGridSizer1;
-    wxFlexGridSizer* FlexGridSizer2;
-    wxBoxSizer* BoxSizer1;
+    //(*Initialize(EntangleFrame)
 
-    Create(parent, id, _("Entangle"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE & ~(wxRESIZE_BORDER | wxMAXIMIZE_BOX | wxMINIMIZE_BOX), _T("id"));
+    //Frame and panel for widgets
+    Create(parent, id, _("Entangle"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE & ~(wxRESIZE_BORDER | wxMAXIMIZE_BOX), _T("id"));
     SetFocus();
     panel = new wxPanel(this, wxID_ANY);
+
+    //Main sizer and file selector
     FlexGridSizer1 = new wxFlexGridSizer(5, 1, 0, 0);
-    StaticText1 = new wxStaticText(panel, ID_STATICTEXT1, _("Choose files or folders:"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICTEXT1"));
-    FlexGridSizer1->Add(StaticText1, 1, wxTOP|wxLEFT|wxRIGHT|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
-    GenericDirCtrl1 = new wxGenericDirCtrl(panel, ID_GENERICDIRCTRL1, wxEmptyString, wxDefaultPosition, wxSize(190,190), wxDIRCTRL_MULTIPLE, wxEmptyString, 0, _T("ID_GENERICDIRCTRL1"));
-    FlexGridSizer1->Add(GenericDirCtrl1, 1, wxTOP|wxLEFT|wxRIGHT|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, wxDLG_UNIT(this,wxSize(5,0)).GetWidth());
+    TaskText = new wxStaticText(panel, ID_TASKTEXT, _("Choose files or folders:"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_TASKTEXT"));
+    FileSelector = new wxGenericDirCtrl(panel, ID_FILESELECTOR, wxEmptyString, wxDefaultPosition, wxSize(190,190), wxDIRCTRL_MULTIPLE, wxEmptyString, 0, _T("ID_FILESELECTOR"));
+    FileSelector->SetToolTip(_("You can drop files or folders here"));
+    FlexGridSizer1->Add(TaskText, 1, wxTOP|wxLEFT|wxRIGHT|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    FlexGridSizer1->Add(FileSelector, 1, wxTOP|wxLEFT|wxRIGHT|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, wxDLG_UNIT(this,wxSize(5,0)).GetWidth());
+
+    LoadImages(); //"Encrypt" / "decrypt" images
+
+    //Password input and mode selector
     FlexGridSizer2 = new wxFlexGridSizer(2, 2, 0, 0);
-    StaticText2 = new wxStaticText(panel, ID_STATICTEXT2, _("Enter the password:"), wxDefaultPosition, wxDefaultSize, wxALIGN_CENTRE, _T("ID_STATICTEXT2"));
-    FlexGridSizer2->Add(StaticText2, 1, wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
-    StaticText3 = new wxStaticText(panel, ID_STATICTEXT3, _("Mode"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICTEXT3"));
-    FlexGridSizer2->Add(StaticText3, 1, wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
-    TextCtrl1 = new wxTextCtrl(panel, ID_TEXTCTRL1, wxEmptyString, wxDefaultPosition, wxSize(150,28), 0, wxDefaultValidator, _T("ID_TEXTCTRL1"));
+    PasswordHint = new wxStaticText(panel, ID_PASSWORDHINT, _("Enter the password:"), wxDefaultPosition, wxDefaultSize, wxALIGN_CENTRE, _T("ID_PASSWORDHINT"));
+    TextCtrl1 = new wxTextCtrl(panel, ID_PASSWORD, wxEmptyString, wxDefaultPosition, wxSize(150,28), 0, wxDefaultValidator, _T("ID_PASSWORD"));
+    ModeText = new wxStaticText(panel, ID_MODETEXT, _("Mode"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_MODETEXT"));
+    ModeSwitcher = new wxBitmapButton(panel, ID_MODESWITCHER, wxBitmap(ui_img[mode]), wxDefaultPosition, wxSize(35,35), wxBU_AUTODRAW, wxDefaultValidator, _T("ID_MODESWITCHER"));
+
+    //Connecting widgets and sizers
+    FlexGridSizer2->Add(PasswordHint, 1, wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    FlexGridSizer2->Add(ModeText, 1, wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     FlexGridSizer2->Add(TextCtrl1, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
-    BitmapButton1 = new wxBitmapButton(panel, ID_BITMAPBUTTON1, wxBitmap(wxImage(_T("./img/Encryption.png"))), wxDefaultPosition, wxSize(35,35), wxBU_AUTODRAW, wxDefaultValidator, _T("ID_BITMAPBUTTON1"));
-    FlexGridSizer2->Add(BitmapButton1, 1, wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    FlexGridSizer2->Add(ModeSwitcher, 1, wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+
     FlexGridSizer1->Add(FlexGridSizer2, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+
     BoxSizer1 = new wxBoxSizer(wxHORIZONTAL);
-    AboutButton = new wxButton(panel, ID_BUTTON2, _("About"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_BUTTON2"));
+    //Main action buttons
+    AboutButton = new wxButton(panel, ID_ABOUTBUTTON, _("About"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_ABOUTBUTTON"));
+    StartButton = new wxButton(panel, ID_STARTBUTTON, _("Start"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_STARTBUTTON"));
+    StartButton->SetFocus();
     BoxSizer1->Add(AboutButton, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
-    Button1 = new wxButton(panel, ID_BUTTON1, _("Start"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_BUTTON1"));
-    Button1->SetFocus();
-    BoxSizer1->Add(Button1, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    BoxSizer1->Add(StartButton, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+
     FlexGridSizer1->Add(BoxSizer1, 1, wxBOTTOM|wxLEFT|wxRIGHT|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     panel->SetSizer(FlexGridSizer1);
     FlexGridSizer1->Fit(panel);
     FlexGridSizer1->SetSizeHints(this);
     Center();
 
-    Connect(ID_TEXTCTRL1,wxEVT_COMMAND_TEXT_UPDATED,(wxObjectEventFunction)&EntangleFrame::OnPasswordChange);
-    Connect(ID_BITMAPBUTTON1,wxEVT_COMMAND_BUTTON_CLICKED,(wxObjectEventFunction)&EntangleFrame::OnLockClick);
-    Connect(ID_BUTTON2,wxEVT_COMMAND_BUTTON_CLICKED,(wxObjectEventFunction)&EntangleFrame::OnAbout);
-    Connect(ID_BUTTON1,wxEVT_COMMAND_BUTTON_CLICKED,(wxObjectEventFunction)&EntangleFrame::OnButton1Click);
+    //Events
+    Connect(ID_PASSWORD, wxEVT_COMMAND_TEXT_UPDATED, (wxObjectEventFunction)&EntangleFrame::OnPasswordChange);
+    Connect(ID_MODESWITCHER, wxEVT_COMMAND_BUTTON_CLICKED, (wxObjectEventFunction)&EntangleFrame::OnLockClick);
+    Connect(ID_STARTBUTTON, wxEVT_COMMAND_BUTTON_CLICKED, (wxObjectEventFunction)&EntangleFrame::OnStartButtonClick);
+    Connect(ID_ABOUTBUTTON, wxEVT_COMMAND_BUTTON_CLICKED, (wxObjectEventFunction)&EntangleFrame::OnAboutButtonClick);
+    Bind(wxEVT_DIRCTRL_SELECTIONCHANGED, &EntangleFrame::OnFileReselect, this, ID_FILESELECTOR);
     //*)
 
     //Enable Drag & Drop
     SetDropTarget(new DroppedFilesReciever(this));
-    //Collapse the file choosing tree
-    GenericDirCtrl1->CollapseTree();
-    //Remove any default selections
-    GenericDirCtrl1->UnselectAll();
-    //Set event processor for GenericDirControl
-    Bind(wxEVT_DIRCTRL_SELECTIONCHANGED, &EntangleFrame::OnFileReselect, this, ID_GENERICDIRCTRL1);
+    //Access the data provided as command line arguments / dropped onto the executable
+    received_files = data.tasks;
+    TextCtrl1->SetValue(data.password);
+    //Collapse the file selector and unselect all
+    FileSelector->CollapseTree();
+    FileSelector->UnselectAll();
+    UpdateTasks();
 }
 
-EntangleFrame::~EntangleFrame()
+/* Locating and loading images */
+void EntangleFrame::LoadImages()
 {
-    //(*Destroy(EntangleFrame)
-    //*)
-}
+    //Main application icon
+    #ifdef __WIN32__
+        SetIcon(wxICON(aaaaa));
+    #else
+        wxIcon ui_icon;
+        //Portable version
+        if(wxFileExists("./img/icon.png"))
+            ui_icon.LoadFile("./img/icon.png");
+        //Global installation
+        else if(wxFileExists("/usr/share/pixmaps/entangle.png"))
+            ui_icon.LoadFile("/usr/share/pixmaps/entangle.png");
 
-/* Event processors */
-void EntangleFrame::OnButton1Click(wxCommandEvent& WXUNUSED(event))
-{
-    /* Preparations */
-    //Ensure that tasks are selected and the password is typed in
-    if(!TasksSelected)
+        if(ui_icon.IsOk())
+            SetIcon(ui_icon);
+        else
+            wxMessageBox(_("Cannot load an icon: ")+wxS("icon.png"));
+    #endif
+
+    wxString portable[] = {"./img/Encryption.png", "./img/Decryption.png"};
+    wxString global[] = {"/usr/share/Entangle/img/Encryption.png",
+                       "/usr/share/Entangle/img/Decryption.png"};
+
+    for(int i = Encrypt; i<=Decrypt; ++i) //For both modes
     {
-        SetText(1, _("No tasks selected!"));
+        //Portable version (default)
+        if(wxFileExists(portable[i]))
+            ui_img[i].LoadFile(portable[i]);
+        //Global installation
+        else if(wxFileExists(global[i]))
+            ui_img[i].LoadFile(global[i]);
+        //The file is not provided
+        if(!ui_img[i].IsOk())
+        {
+            wxMessageBox(_("Cannot load an icon: ") + portable[i]);
+            ui_img[i] = wxArtProvider::GetBitmap(wxART_ERROR).ConvertToImage();
+        }
+
+    }
+}
+
+/** Event processors **/
+
+/* UI's process activation */
+void EntangleFrame::OnStartButtonClick(wxCommandEvent& WXUNUSED(event))
+{
+    //Checking user input
+    if(UI_files.IsEmpty()&&received_files.IsEmpty())
+    {
+        SetText(TASKS, _("No tasks selected!"));
         return;
     }
-    if(!PasswordTypedIn)
+    if(!TextCtrl1->GetLineLength(0))
     {
-        SetText(2, _("Enter password first!"));
+        SetText(HINT, _("Enter password first!"));
         return;
     }
     //Get the password
@@ -124,131 +176,124 @@ void EntangleFrame::OnButton1Click(wxCommandEvent& WXUNUSED(event))
     //Join task arrays
     wxArrayString tasks;
     tasks.insert(tasks.end(), UI_files.begin(), UI_files.end());
-    tasks.insert(tasks.end(), drop_files.begin(), drop_files.end());
-    tasks.Shrink();
+    tasks.insert(tasks.end(), received_files.begin(), received_files.end());
 
     //Set the UI to the operational mode
-    SetText(2, _("Processing...")); wxTheApp->Yield();
+    SetText(HINT, _("Processing...")); wxTheApp->Yield();
 
-    //Creating a progress dialog
-    ProgressDisplayer pdisplay(this);
-    //Getting a link to the Entangle singleton
-    Entangle& eInst = Entangle::Instance();
-    //Initializing it
-    eInst.Initialize(tasks, password, mode, &pdisplay);
+    //Connecting main classes
+    UserData data(tasks, password, mode);
+    Entangle E(data, this);
 
     //Calling the Entangle's processing method.
-    int NumFiles = eInst.Process();
+    int NumFiles = E.Process();
     //Yeah, that's all (^_^)
 
-    //Closing the ProgressDialog
-    pdisplay.Done();
-
     //Check if there were any problems during processing
-    if(ErrorTracker::HasIssues())
+    if(Issues::Exist())
     {
         //If it is so, show them to the user
-        SetText(2, _("Went wrong :("));
-        ErrorTracker::ShowIssues();
+        SetText(HINT, _("Went wrong :("));
+        Issues::Show();
     }
     else
     {
-        wxString text;
-        if(mode == Encrypt)
-            text = wxString::Format(wxPLURAL("Encrypted %i file", "Encrypted %i files", NumFiles), NumFiles);
-        else
-            text = wxString::Format(wxPLURAL("Decrypted %i file", "Decrypted %i files", NumFiles), NumFiles);
-        wxMessageBox(text, _("Done!")); SetText(2, _("Done!"));
+        wxMessageBox(ResultString(NumFiles, mode), _("Done!"));
+        SetText(HINT, _("Done!"));
     }
-    //User should re-drop files onto the window to process them again.
-    drop_files.Clear();
+    //User should reselect files to process them again.
+    received_files.Clear();
     UpdateTasks();
 }
 
 void EntangleFrame::OnFileReselect(wxTreeEvent& WXUNUSED(event))
 {
-    this->UpdateTasks();
+    UpdateTasks();
 }
 
 void EntangleFrame::OnLockClick(wxCommandEvent& WXUNUSED(event))
 {
-    /* Reverses current mode */
-    if(mode == Encrypt)
-        BitmapButton1->SetBitmap(wxImage("./img/Decryption.png"));
-    else
-        BitmapButton1->SetBitmap(wxImage("./img/Encryption.png"));
-    mode = (MODE)(1-mode);
+    mode = (MODE)(1-mode); //Swap the mode
+    //Update the indicator
+    ModeSwitcher->SetBitmap(ui_img[mode]);
 }
 
 void EntangleFrame::OnPasswordChange(wxCommandEvent& WXUNUSED(event))
 {
-    int length = TextCtrl1->GetLineText(0).length();
-    PasswordTypedIn = true;
+    int length = TextCtrl1->GetLineLength(0);
     if(!length)
-    {
-        SetText(2, _("Enter the password:"));
-        PasswordTypedIn = false;
-    }
+        SetText(HINT, _("Enter the password:"));
     else if(length > 16)
-         SetText(2, _("Good")+" (>16)");
+         SetText(HINT, _("Good")+" (>16)");
     else if(length == 16)
-        SetText(2, _("Good")+" (16/16)");
+        SetText(HINT, _("Good")+" (16/16)");
     else if(length > 10)
-        SetText(2, _("Medium")+" ("+ToString(length)+"/16)");
+        SetText(HINT, _("Medium")+" ("+ToString(length)+"/16)");
     else
-        SetText(2, _("Short")+" ("+ToString(length)+"/16)");
+        SetText(HINT, _("Short")+" ("+ToString(length)+"/16)");
     wxTheApp->Yield();
 }
 
-void EntangleFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
+void EntangleFrame::OnAboutButtonClick(wxCommandEvent& WXUNUSED(event))
 {
-    wxAboutDialogInfo aboutInfo;
-    aboutInfo.SetName("Entangle");
-    aboutInfo.SetVersion("0.9.3");
-    aboutInfo.SetDescription(_("Simple and user-friendly application\nfor AES-based data encryption"));
-    aboutInfo.SetCopyright("(C) Ilya Bizyaev <bizyaev@lyceum62.ru>, 2015");
-    aboutInfo.SetWebSite("http://entangle.ucoz.net");
-    wxAboutBox(aboutInfo, this);
+    wxAboutDialogInfo about;
+    about.SetName("Entangle");
+    about.SetVersion("1.0");
+    about.SetDescription(_("Simple and user-friendly application\nfor data encryption"));
+    about.SetCopyright("(C) Ilya Bizyaev <bizyaev@lyceum62.ru>, 2015-2016");
+    about.SetWebSite("GitHub.com/IlyaBizyaev/Entangle");
+
+    //Thanks (^_^)
+    about.AddDeveloper("Author: Ilya Bizyaev.\n"
+                       "Thanks to...\n"
+                       "...doublemax and DenDev for answering my wxQuestions :)\n"
+                       "...Jean-Pierre Münch, Jeffrey Walton and Mobile Mouse for help with the encryption.\n"
+                       "...RostakaGmfun for testing\n"
+                       );
+
+    about.AddTranslator("RostakaGmfun (Ukrainian)");
+    about.AddTranslator("Alina Krasnikova (initial German)");
+
+    wxAboutBox(about, this);
     wxTheApp->SafeYield(NULL, false);
 }
 
-/* UI-based functions */
+/** UI-based functions **/
+/* Update task counters */
 void EntangleFrame::UpdateTasks()
 {
     //Get paths from the file tree
-	GenericDirCtrl1->GetPaths(UI_files);
+	FileSelector->GetPaths(UI_files);
 
-	size_t chosen = UI_files.size(), dropped = drop_files.size();
-    TasksSelected = (chosen||dropped ? true : false);
+	int chosen = UI_files.size(), dropped = received_files.size();
 
     wxString first_half, second_half, result;
-    first_half = wxString::Format(wxPLURAL("Selected %lu", "Selected %lu", chosen), chosen);
-    second_half = wxString::Format(wxPLURAL("Received %lu", "Received %lu", dropped), dropped);
+    if(chosen)
+        result = wxString::Format(wxPLURAL("Selected %d", "Selected %d", chosen), chosen);
+    second_half = wxString::Format(wxPLURAL("Received %d", "Received %d", dropped), dropped);
 
+    if(!chosen && !dropped)
+		result = _("Choose files or folders:");
 	if(chosen && !dropped)
-		result = first_half + wxPLURAL(" object", " objects", chosen);
+		result += wxPLURAL(" object", " objects", chosen);
 	else if(dropped && !chosen)
 		result = second_half + wxPLURAL(" object", " objects", dropped);
 	else if(chosen && dropped)
-		result = first_half + wxT(", ") + second_half.MakeLower();
-	else if(!chosen && !dropped)
-		result = _("Choose files or folders:");
+		result += wxT(", ") + second_half.MakeLower();
 
-	SetText(1, result);
+	SetText(TASKS, result);
 }
 
-void EntangleFrame::AddDropped(wxArrayString filenames)
+void EntangleFrame::AddDropped(const wxArrayString & filenames)
 {
-    //Adding tasks to the drop_files array
-    drop_files.insert(drop_files.end(), filenames.begin(), filenames.end());
-    //Update the UI
+    received_files.insert(received_files.end(), filenames.begin(), filenames.end());
     UpdateTasks();
 }
 
-void EntangleFrame::SetText(int line, wxString message)
+void EntangleFrame::SetText(int line, const wxString & message)
 {
-    if(line==1)
-        StaticText1->SetLabelText(message);
-    else if(line==2)
-        StaticText2->SetLabelText(message);
+    if(line==TASKS)
+        TaskText->SetLabelText(message);
+    else if(line==HINT)
+        PasswordHint->SetLabelText(message);
 }

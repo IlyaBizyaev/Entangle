@@ -1,132 +1,139 @@
 /***************************************************************
  * Name:      EntangleApp.cpp
  * Purpose:   Code for Application Class
- * Author:    Ilya Bizyaev (bizyaev.game@yandex.ru)
+ * Author:    Ilya Bizyaev (bizyaev@lyceum62.ru)
  * Created:   2015-01-06
- * Copyright: Ilya Bizyaev (utor.ucoz.ru)
+ * Copyright: Ilya Bizyaev
  * License:   GNU GPL v3
  **************************************************************/
 
 #include "EntangleApp.h"
-#include <wx/msgdlg.h>
-
-//(*AppHeaders
 #include "EntangleMain.h"
-//*)
+#include <wx/msgdlg.h>
 
 IMPLEMENT_APP(EntangleApp)
 
 bool EntangleApp::OnInit()
 {
-    //(*AppInitialize
-
     if(!wxApp::OnInit())
         return false;
 
-    bool wxsOK = true;
-    wxInitAllImageHandlers();
-    if (wxsOK)
+    if(console_mode) return true;
+
+    //Initializing image handlers
+    wxImage::AddHandler(new wxPNGHandler);
+    #ifdef _WIN32
+    wxImage::AddHandler(new wxICOHandler);
+    #endif // _WIN32
+
+    //Creating and showing the dialog
+    EntangleFrame* Frame = new EntangleFrame(0, data);
+    Frame->Show();
+    SetTopWindow(Frame);
+
+    return true;
+}
+
+void EntangleApp::GetTranslations()
+{
+    //Request system language
+    m_lang = (wxLanguage)wxLocale::GetSystemLanguage();
+    //For Russian-speaking countries, set the language to Russian.
+    if(m_lang==wxLANGUAGE_RUSSIAN_UKRAINE||m_lang==wxLANGUAGE_KAZAKH)
+        m_lang=wxLANGUAGE_RUSSIAN;
+
+    if(m_locale.Init(m_lang))
     {
-    	//If language is not defined yet, request system default one.
-    	if(m_lang == wxLANGUAGE_UNKNOWN)
-            m_lang = (wxLanguage)wxLocale::GetSystemLanguage();
-        //For Russian-speaking countries, set the laungage to Russian.
-        if(m_lang==wxLANGUAGE_RUSSIAN_UKRAINE||m_lang==wxLANGUAGE_KAZAKH)
-            m_lang=wxLANGUAGE_RUSSIAN;
-
-        if (!m_locale.Init(m_lang, wxLOCALE_DONT_LOAD_DEFAULT))
-            wxMessageBox("This language is not supported!");
-
         //Search for translation files
         wxLocale::AddCatalogLookupPathPrefix("./lang");
-        if (!m_locale.AddCatalog("Entangle"))
-            wxMessageBox("Couldn't find translation for "+m_locale.GetLanguageName(m_lang));
-
-        //Creating a dialog
-    	EntangleFrame* Frame = new EntangleFrame(0);
-    	//On Windows, setting an icon.
-        #ifdef __WIN32__
-            Frame->SetIcon(wxICON(aaaaa));
-        #endif
-        //Showing the dialog
-    	Frame->Show();
-    	SetTopWindow(Frame);
+        #ifdef __linux__ 
+        wxLocale::AddCatalogLookupPathPrefix("/usr/share/locale/");
+        #endif //__linux__
+        m_locale.AddCatalog("Entangle");
+        //No warning if the translation was not found.
     }
-    //*)
-    return wxsOK;
 }
 
 
 void EntangleApp::OnInitCmdLine(wxCmdLineParser& parser)
 {
-    parser.SetDesc (g_cmdLineDesc);
-    // must refuse '/' as parameter starter or cannot use "/path" style paths
+    parser.SetDesc(g_cmdLineDesc);
     parser.SetSwitchChars (wxT("-"));
-    parser.SetLogo(wxS("Entangle v.0.9.3"));
+    parser.SetLogo(wxS("Entangle v.1.0"));
 }
 
 bool EntangleApp::OnCmdLineParsed(wxCmdLineParser& parser)
 {
+    //Print version and exit
+    if(parser.Found("v"))
+    {
+        Write("1.0\n");
+        return false;
+    }
+
+    GetTranslations();
+
+    short data_provided=0;
     wxString password, mode;
-    bool got_password = parser.Found("p", &password);
-    bool got_mode = parser.Found("m", &mode);
 
-    if(got_password && got_mode) //Console mode
-        console_mode = true;
-    else if(!got_password&&!got_mode) //GUI mode
+    //Password
+    if(parser.Found("p", &password))
+    {
+        ++data_provided;
+        data.password = password;
+    }
+
+    //Encryption mode
+    if(parser.Found("m", &mode))
+    {
+        ++data_provided;
+        mode.MakeLower();
+
+        //Aliases are available
+        if(mode=="encryption"||mode=="encrypt"||mode=="e")
+            data.mode = Encrypt;
+        else if(mode=="decryption"||mode=="decrypt"||mode=="d")
+            data.mode = Decrypt;
+        else
+        {
+            Write(_("Invalid mode.\n"));
+            return false;
+        }
+    }
+
+    //Files to process
+    if(parser.GetParamCount())
+    {
+        ++data_provided;
+        for(size_t i=0; i < parser.GetParamCount(); ++i)
+            data.tasks.Add(parser.GetParam(i));
+    }
+
+    //If ALL the arguments are provided, no GUI is needed.
+    if(data_provided==3)
+    {
+        //Connecting main classes
+        UserData m_data(data.tasks, data.password, data.mode);
+        Issues::ConsoleMode();
+        Entangle E(m_data);
+
+        //Processing
+        int NumFiles = E.Process();
+        //Reporting the result
+        Write(ResultString(NumFiles, data.mode)+"\n");
+        if(Issues::Exist())
+        {
+            Issues::Show();
+            return false;
+        }
         return true;
-    else //Only one option is specified
-    {
-        Write("You should specify BOTH password and mode!\n");
-        return false;
     }
 
-    mode.MakeLower();
-
-    MODE e_mode;
-    if(mode!="encryption"&&mode!="decryption")
-    {
-        Write("Invalid mode specified.\n");
-        return false;
-    }
-    else
-        e_mode = mode == "encryption" ? Encrypt : Decrypt;
-
-    if(!parser.GetParamCount())
-    {
-        Write("No tasks specified.\n");
-        return false;
-    }
-
-    // Getting files to process
-    wxArrayString tasks;
-    for(size_t i = 0; i < parser.GetParamCount(); ++i)
-        tasks.Add(parser.GetParam(i));
-
-    ProgressDisplayer pdisplay;
-    ErrorTracker::SetConsoleMode();
-
-    //Getting a link to the Entangle singleton
-    Entangle& eInst = Entangle::Instance();
-    //Initializing it
-    eInst.Initialize(tasks, password, e_mode, &pdisplay);
-
-    int NumFiles = eInst.Process();
-    pdisplay.Done();
-    Write("Processed "+ToString(NumFiles)+"\n");
-    if(ErrorTracker::HasIssues())
-    {
-        ErrorTracker::ShowIssues();
-        return false;
-    }
-
+    console_mode = false;
     return true;
 }
 
 int EntangleApp::OnRun()
 {
-    if(console_mode)
-        return 0;
-    else
-        return wxApp::OnRun();
+    return console_mode ? 0 : wxApp::OnRun();
 }

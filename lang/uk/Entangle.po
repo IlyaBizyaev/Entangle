@@ -1,187 +1,262 @@
-# Entangle 0.9
+# Entangle 1.0
 # Copyright (C) 2015 Ilya Bizyaev, Rostyslav Kurylo
 # This file is distributed under the same license as the Entangle package.
 # Ilya Bizyaev <bizyaev@lyceum62.ru>, 2015.
 # Rostyslav Kurylo <rostawesomegd@gmail.com>
 msgid ""
 msgstr ""
-"Project-Id-Version: Entangle 0.9\n"
+"Project-Id-Version: Entangle 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2015-06-01 12:39+0300\n"
-"PO-Revision-Date: 2015-06-15 12:55+0300\n"
+"POT-Creation-Date: 2016-05-14 21:07+0300\n"
+"PO-Revision-Date: 2016-05-14 21:07+0300\n"
 "Last-Translator: Ilya <bizyaev.game@yandex.ru>\n"
 "Language-Team: Ilya Bizyaev\n"
 "Language: uk\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
-"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
-"X-Generator: Virtaal 0.7.1\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n"
+"%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+"X-Generator: Poedit 1.8.7.1\n"
 
-#: ../EntangleMain.cpp:60 ../EntangleMain.cpp:418
-msgid "Starting..."
-msgstr "Починаю..."
+#: src/EntangleApp.cpp:99
+msgid "Invalid mode.\n"
+msgstr "Невідомий режим.\n"
 
-#: ../EntangleMain.cpp:97
+#: src/EntangleFrame.cpp:53
 msgid "Entangle"
 msgstr "Entangle"
 
-#: ../EntangleMain.cpp:100 ../EntangleMain.cpp:708
+#: src/EntangleFrame.cpp:59 src/EntangleFrame.cpp:276
 msgid "Choose files or folders:"
 msgstr "Оберіть файли або теки:"
 
-#: ../EntangleMain.cpp:105 ../EntangleMain.cpp:474
+#: src/EntangleFrame.cpp:61
+msgid "You can drop files or folders here"
+msgstr "Ви можете перетягнути сюди файли або папки"
+
+#: src/EntangleFrame.cpp:69 src/EntangleFrame.cpp:225
 msgid "Enter the password:"
 msgstr "Введіть пароль:"
 
-#: ../EntangleMain.cpp:107
+#: src/EntangleFrame.cpp:71
 msgid "Mode"
 msgstr "Режим"
 
-#: ../EntangleMain.cpp:115
+#: src/EntangleFrame.cpp:84
 msgid "About"
 msgstr "Автор"
 
-#: ../EntangleMain.cpp:117
+#: src/EntangleFrame.cpp:85
 msgid "Start"
 msgstr "Почати"
 
-#: ../EntangleMain.cpp:164
-msgid "Cannot open the input file"
-msgstr "Не можу відкрити вхідний файл"
+#: src/EntangleFrame.cpp:133 src/EntangleFrame.cpp:151
+msgid "Cannot load an icon: "
+msgstr "Не можу завантажити значок: "
 
-#: ../EntangleMain.cpp:173
-msgid "Cannot create an output file"
-msgstr "Не можу відкрити вихідний файл"
-
-#: ../EntangleMain.cpp:181
-msgid "Decrypting "
-msgstr "Розшифровую "
-
-#: ../EntangleMain.cpp:213
-msgid "Incorrect header size"
-msgstr "Невірний розмір заголовка"
-
-#: ../EntangleMain.cpp:277
-msgid "Invalid password or mode"
-msgstr "Невірний пароль або режим"
-
-#: ../EntangleMain.cpp:279
-msgid "The file is corrupted"
-msgstr "Файл пошкоджено"
-
-#: ../EntangleMain.cpp:284 ../EntangleMain.cpp:340
-msgid "Unknown exception"
-msgstr "Невідоме виключення"
-
-#: ../EntangleMain.cpp:298
-msgid "Encrypting "
-msgstr "Шифрую "
-
-#: ../EntangleMain.cpp:389
-msgid "Cannot rename the result"
-msgstr "Не можу перейменувати результат"
-
-#: ../EntangleMain.cpp:404
+#: src/EntangleFrame.cpp:166
 msgid "No tasks selected!"
 msgstr "Завдання не вибрані!"
 
-#: ../EntangleMain.cpp:409
+#: src/EntangleFrame.cpp:171
 msgid "Enter password first!"
 msgstr "Спочатку введіть пароль!"
 
-#: ../EntangleMain.cpp:417
+#: src/EntangleFrame.cpp:182
 msgid "Processing..."
 msgstr "Обробка..."
 
-#: ../EntangleMain.cpp:418
-msgid "Progress"
-msgstr "Прогресс"
-
-#: ../EntangleMain.cpp:429
-msgid "Done!"
-msgstr "Готово!"
-
-#: ../EntangleMain.cpp:435
+#: src/EntangleFrame.cpp:196
 msgid "Went wrong :("
 msgstr "Не вдалось :("
 
-#: ../EntangleMain.cpp:436
-msgid "Something went wrong:"
-msgstr "Щось трапилось не так:"
+#: src/EntangleFrame.cpp:201 src/EntangleFrame.cpp:202 src/extras/UI.cpp:150
+msgid "Done!"
+msgstr "Готово!"
 
-#: ../EntangleMain.cpp:444
-#, c-format
-msgid "Decrypted %i file"
-msgid_plural "Decrypted %i files"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
-
-#: ../EntangleMain.cpp:446
-#, c-format
-msgid "Encrypted %i file"
-msgid_plural "Encrypted %i files"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
-
-#: ../EntangleMain.cpp:478 ../EntangleMain.cpp:480
+#: src/EntangleFrame.cpp:227 src/EntangleFrame.cpp:229
 msgid "Good"
 msgstr "Хороший"
 
-#: ../EntangleMain.cpp:482
+#: src/EntangleFrame.cpp:231
 msgid "Medium"
 msgstr "Cередній"
 
-#: ../EntangleMain.cpp:484
+#: src/EntangleFrame.cpp:233
 msgid "Short"
 msgstr "Короткий"
 
-#: ../EntangleMain.cpp:493
+#: src/EntangleFrame.cpp:242
 msgid ""
 "Simple and user-friendly application\n"
-"for AES-based data encryption"
+"for data encryption"
 msgstr ""
 "Простий і зручний додаток\n"
-"для AES-шифрування даних"
+"для шифрування даних"
 
-#: ../EntangleMain.cpp:575
+#: src/EntangleFrame.cpp:272
+#, c-format
+msgid "Selected %d"
+msgid_plural "Selected %d"
+msgstr[0] "Обраний %d"
+msgstr[1] "Обрані %d"
+msgstr[2] "Обрані %d"
+
+#: src/EntangleFrame.cpp:273
+#, c-format
+msgid "Received %d"
+msgid_plural "Received %d"
+msgstr[0] "Отримано %d"
+msgstr[1] "Отримано %d"
+msgstr[2] "Отримано %d"
+
+#: src/EntangleFrame.cpp:278 src/EntangleFrame.cpp:280
+msgid " object"
+msgid_plural " objects"
+msgstr[0] " об'єкт"
+msgstr[1] " об'єкта"
+msgstr[2] " об'єктів"
+
+#: src/EntangleMain.cpp:53 src/EntangleMain.cpp:59 src/EntangleMain.cpp:176
+#: src/EntangleMain.cpp:277
+msgid "Cannot create an output file"
+msgstr "Не можу відкрити вихідний файл"
+
+#: src/EntangleMain.cpp:76 src/EntangleMain.cpp:114 src/EntangleMain.cpp:120
+#: src/EntangleMain.cpp:143 src/EntangleMain.cpp:149 src/EntangleMain.cpp:270
+msgid "Cannot open an input file"
+msgstr "Не можу відкрити вхідний файл"
+
+#: src/EntangleMain.cpp:79
+msgid "Compressing "
+msgstr "Стискаю "
+
+#: src/EntangleMain.cpp:136
+msgid "Remove the archive?"
+msgstr "Видалити архів?"
+
+#: src/EntangleMain.cpp:180
+msgid "Decompressing "
+msgstr "Розпаковую "
+
+#: src/EntangleMain.cpp:190
+msgid "Failed to read an entry"
+msgstr "Помилка читання запису"
+
+#: src/EntangleMain.cpp:210
+msgid "More than 200 files were selected. Compress?"
+msgstr "Вибрано понад 200 файлів. Стиснути?"
+
+#: src/EntangleMain.cpp:213
+msgid "Remove the original files?"
+msgstr "Видалити вихідні файли?"
+
+#: src/EntangleMain.cpp:219
+msgid "Compression failed. Continue without compression?"
+msgstr "Стиснення не вдалося. Продовжити без стиснення?"
+
+#: src/EntangleMain.cpp:249
+msgid "Failed to decompress"
+msgstr "Помилка розпакування"
+
+#: src/EntangleMain.cpp:289
+msgid "Encrypting "
+msgstr "Шифрую "
+
+#: src/EntangleMain.cpp:328 src/EntangleMain.cpp:477 src/extras/Data.cpp:143
+msgid "Unknown exception"
+msgstr "Невідоме виключення"
+
+#: src/EntangleMain.cpp:358 src/EntangleMain.cpp:450 src/extras/Data.cpp:251
 msgid "Does not exist"
 msgstr "Не існує"
 
-#: ../EntangleMain.cpp:602
+#: src/EntangleMain.cpp:370
+msgid "Encrypted file has wrong size"
+msgstr "Зашифрований файл має неправильний розмір"
+
+#: src/EntangleMain.cpp:380
+msgid "Decrypting "
+msgstr "Розшифровую "
+
+#: src/EntangleMain.cpp:408
+msgid "Incorrect header size"
+msgstr "Невірний розмір заголовка"
+
+#: src/EntangleMain.cpp:472
+msgid "The file is corrupted"
+msgstr "Файл пошкоджено"
+
+#: src/EntangleMain.cpp:473
+msgid "Invalid password or mode"
+msgstr "Невірний пароль або режим"
+
+#: src/EntangleMain.cpp:491
+msgid "Decrypted file has wrong size"
+msgstr "Розшифрований файл має неправильний розмір"
+
+#: src/EntangleMain.cpp:507
+msgid "Cannot rename the result"
+msgstr "Не можу перейменувати результат"
+
+#: src/EntangleMain.cpp:547
 msgid "Cannot access"
 msgstr "Немає дозволу"
 
-#: ../EntangleMain.cpp:697
-#, c-format
-msgid "Selected %lu"
-msgid_plural "Selected %lu"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
-
-#: ../EntangleMain.cpp:699
-#, c-format
-msgid "Received %lu"
-msgid_plural "Received %lu"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
-
-#: ../EntangleMain.cpp:702 ../EntangleMain.cpp:704
-msgid " object"
-msgid_plural " objects"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
-
-#: ../EntangleMain.cpp:744
+#: src/extras/Encryption.cpp:30
 msgid "Requires newer program version"
 msgstr "Потребує новішої версії"
 
-#: ../EntangleMain.cpp:746
+#: src/extras/Encryption.cpp:32
 msgid "Was encrypted by older version"
 msgstr "Зашифрований застарілою версією"
+
+#: src/extras/UI.cpp:69
+msgid "Question"
+msgstr "Питання"
+
+#: src/extras/UI.cpp:83 src/extras/UI.cpp:92
+msgid "Where to save the result?"
+msgstr "Де зберегти результат?"
+
+#: src/extras/UI.cpp:94
+msgid "Input failed"
+msgstr "Помилка вводу"
+
+#: src/extras/UI.cpp:111
+#, c-format
+msgid "Encrypted %i file"
+msgid_plural "Encrypted %i files"
+msgstr[0] "Зашифровано %i файл"
+msgstr[1] "Зашифровані %i файлу"
+msgstr[2] "Зашифровані %i файлів"
+
+#: src/extras/UI.cpp:113
+#, c-format
+msgid "Decrypted %i file"
+msgid_plural "Decrypted %i files"
+msgstr[0] "Розшифровано %i файл"
+msgstr[1] "Розшифровані %i файлу"
+msgstr[2] "Розшифровані %i файлів"
+
+#: src/extras/UI.cpp:120 src/extras/UI.cpp:125 src/extras/UI.cpp:153
+#: src/extras/UI.cpp:165
+msgid "Starting..."
+msgstr "Починаю..."
+
+#: src/extras/UI.cpp:125
+msgid "Progress"
+msgstr "Прогресс"
+
+#: src/extras/UI.cpp:150
+msgid "Error"
+msgstr "Помилка"
+
+#: src/extras/UI.cpp:225
+#, c-format
+msgid "%u error:"
+msgid_plural "%u errors:"
+msgstr[0] "%u помилка:"
+msgstr[1] "%u помилки:"
+msgstr[2] "%u помилок:"

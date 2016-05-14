@@ -1,9 +1,9 @@
 /***************************************************************
  * Name:      EntangleMain.h
  * Purpose:   Defines the Entangle class
- * Author:    Ilya Bizyaev (bizyaev.game@yandex.ru)
+ * Author:    Ilya Bizyaev (bizyaev@lyceum62.ru)
  * Created:   2015-06-23
- * Copyright: Ilya Bizyaev (utor.ucoz.ru)
+ * Copyright: Ilya Bizyaev
  * License:   GNU GPL v3
  **************************************************************/
 
@@ -11,48 +11,34 @@
 #define ENTANGLEMAIN_H
 
 #include "EntangleFrame.h"
-#include "EntangleExtras.h"
+#include "extras/Encryption.h"
+#include "extras/UI.h"
 
 #include <vector>
 
-// Cryptography-responsible class. This is the main part of Entangle.
-// This class is defined as singleton, as there should exist only one
-// instance of it for the whole program.
-
+//Cryptography-responsible class. This is the main part of Entangle.
 class Entangle
 {
     public:
-        //A method which provides callers with a link to the only instance
-        static Entangle& Instance()
-        {
-            static Entangle OnlyInstance;
-            return OnlyInstance;
-        }
-        //Constructor is private, thus this class needs a method to be initialized
-        void Initialize(wxArrayString & g_tasks, wxString & g_password, MODE g_mode, ProgressDisplayer * g_pdisplay);
+        Entangle(UserData & udata, EntangleFrame * frame = NULL);
         //Called by the UI; runs main processing algorithm for each task
         int Process();
     private:
-        //Making Entangle a singleton
-        Entangle() : Initialized(false) {  };
-        Entangle(const Entangle&);
-        const Entangle& operator=(const Entangle&);
-
         //Get file size for each file
-        void GetSizes(int & NumFiles);
-        //Check if header's versions matches program's one
-        static bool CheckHeader(Header & header, wxString & filename);
+        int GetSizes();
+        //Called if the user requests compression
+        bool Compress(bool remove);
+        bool IsDecompressionNeeded(wxString & fname);
+        bool Decompress(wxString & arc_name);
         //Process one file. MAIN ALGORITHM!
         bool ProcessFile(size_t task_index);
 
-        //Required data
-        MODE mode;                      //Mode of operation
-        wxArrayString tasks;            //Task array
-        wxString password;              //User's password
-        ProgressDisplayer * pdisplay;   //Needed to update current progress
-
-        bool Initialized;
-        vector<unsigned long long> file_sizes;
+        /* Required data */
+        UserData & u;
+        wxArrayString to_decompress;  //Archives that are not just archives :)
+        Progress progress;            //Needed to update current progress
+        Asker a;                      //Asks yes/no questions
+        vector<ullong> file_sizes;
 };
 
 #endif // ENTANGLEMAIN_H

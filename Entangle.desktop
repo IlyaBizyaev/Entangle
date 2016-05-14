@@ -1,0 +1,15 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Entangle
+Comment=File encryption
+Comment[ru]=Шифрование файлов
+Comment[uk]=Шифрування файлів
+Comment[de]=Datei-Verschlüsselung
+Keywords=Encrypt;Decrypt;file;
+Keywords[ru]=Шифрование;файл;
+Exec=Entangle %F
+Terminal=false
+Icon=entangle
+Categories=System;Utility;FileTools;Security;
+MimeType=application/*;audio/*;image/*;model/*;text/*;video/*;
