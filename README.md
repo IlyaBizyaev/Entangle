@@ -7,7 +7,9 @@
 
 ## Description
 Entangle is a simple application, designed to help users protect their private data in a few clicks using AES encryption.
+
 It can also be used to make backups, as it supports ZIP compression.
+
 Entangle is built using wxWidgets and Crypto++ libraries, which makes it cross-platform.
 ### Features:
 - User-friendly
