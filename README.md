@@ -25,7 +25,7 @@ It is also possible to use manually built libraries.
 **Note.** On some distributions, Cryto++ packages may be called `libcryptopp`.
 
 ### Windows
-On Windows, you have to download wxWidgets and Crypto++ libraries from official websites and build them manually.
+On Windows, you have to download wxWidgets and Crypto++ libraries from official websites and build them manually.  
 **Notes:**  
 For wxWidgets, it is recommended to use MSYS and run `make install`.  
 For Crypto++, it is recommended to locate it at `C:\cryptopp`.  
