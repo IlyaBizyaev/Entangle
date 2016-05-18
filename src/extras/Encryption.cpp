@@ -53,11 +53,7 @@ size_t EntangleSink::Put2(const byte *inString, size_t length, int, bool)
         }
 
     }
-	if(!output.write(inString, length))
-    {
-        Issues::Add(output.why_failed());
-        return 1;
-    }
+	output.write(inString, length);
     ++check;
 	return 0;
 }
@@ -76,6 +72,11 @@ AutoSeededRandomPool RNG::rnd;
 void RNG::GenerateBlock(byte * output, size_t size)
 {
     rnd.GenerateBlock(output, size);
+}
+
+void RNG::GenerateBlock(ByteArray & output)
+{
+    rnd.GenerateBlock(output, output.size());
 }
 
 unsigned int RNG::RandomNumber(int min_val, int max_val)

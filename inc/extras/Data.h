@@ -75,13 +75,15 @@ public:
     wxString GetPath(); ullong size();
     bool is_open(); wxString why_failed();
     //Basic file operations
-    bool seek_start();
-    bool read(byte* data, int size);
-    bool write(const byte* data, int size);
+    void seek_start();
+    void read(byte* data, int size);
+    void read(ByteArray & data);
+    void write(const byte* data, int size);
+    void write(ByteArray & data);
     void flush();
     //Advanced actions
     bool rename(const wxString & new_name);
-    bool remove(); bool shred(bool show_spinner = false);
+    bool remove(); bool shred();
     //Closing and destruction
     void close(); ~BinFile();
 private:

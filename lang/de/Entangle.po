@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Entangle 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2016-05-14 21:06+0300\n"
-"PO-Revision-Date: 2016-05-14 21:06+0300\n"
+"POT-Creation-Date: 2016-05-18 19:15+0300\n"
+"PO-Revision-Date: 2016-05-18 19:15+0300\n"
 "Last-Translator: Ilya <bizyaev.game@yandex.ru>\n"
 "Language-Team: Ilya Bizyaev\n"
 "Language: de\n"
@@ -113,13 +113,13 @@ msgid_plural " objects"
 msgstr[0] " Objekt"
 msgstr[1] " Objekte"
 
-#: src/EntangleMain.cpp:53 src/EntangleMain.cpp:59 src/EntangleMain.cpp:176
-#: src/EntangleMain.cpp:277
+#: src/EntangleMain.cpp:53 src/EntangleMain.cpp:59 src/EntangleMain.cpp:175
+#: src/EntangleMain.cpp:276
 msgid "Cannot create an output file"
 msgstr "Kann nicht erstellen Sie eine Ausgabe-Datei"
 
 #: src/EntangleMain.cpp:76 src/EntangleMain.cpp:114 src/EntangleMain.cpp:120
-#: src/EntangleMain.cpp:143 src/EntangleMain.cpp:149 src/EntangleMain.cpp:270
+#: src/EntangleMain.cpp:142 src/EntangleMain.cpp:148 src/EntangleMain.cpp:269
 msgid "Cannot open an input file"
 msgstr "Kann nicht öffnen Sie die input-Datei"
 
@@ -127,75 +127,75 @@ msgstr "Kann nicht öffnen Sie die input-Datei"
 msgid "Compressing "
 msgstr "Komprimieren "
 
-#: src/EntangleMain.cpp:136
+#: src/EntangleMain.cpp:135
 msgid "Remove the archive?"
 msgstr "Entfernen Sie das Archiv?"
 
-#: src/EntangleMain.cpp:180
+#: src/EntangleMain.cpp:179
 msgid "Decompressing "
 msgstr "Dekomprimieren "
 
-#: src/EntangleMain.cpp:190
+#: src/EntangleMain.cpp:189
 msgid "Failed to read an entry"
 msgstr "Fehler beim Lesen eines Eintrags"
 
-#: src/EntangleMain.cpp:210
+#: src/EntangleMain.cpp:209
 msgid "More than 200 files were selected. Compress?"
 msgstr "Mehr als 200 Dateien ausgewählt wurden. Komprimieren?"
 
-#: src/EntangleMain.cpp:213
+#: src/EntangleMain.cpp:212
 msgid "Remove the original files?"
 msgstr "Entfernen Sie die original-Dateien?"
 
-#: src/EntangleMain.cpp:219
+#: src/EntangleMain.cpp:218
 msgid "Compression failed. Continue without compression?"
 msgstr "Kompression ist fehlgeschlagen. Weiterhin ohne Komprimierung?"
 
-#: src/EntangleMain.cpp:249
+#: src/EntangleMain.cpp:248
 msgid "Failed to decompress"
 msgstr "Fehler beim entpacken"
 
-#: src/EntangleMain.cpp:289
+#: src/EntangleMain.cpp:291
 msgid "Encrypting "
 msgstr "Entschlüsseln "
 
-#: src/EntangleMain.cpp:328 src/EntangleMain.cpp:477 src/extras/Data.cpp:143
-msgid "Unknown exception"
-msgstr "Unbekannte Ausnahme"
-
-#: src/EntangleMain.cpp:358 src/EntangleMain.cpp:450 src/extras/Data.cpp:251
+#: src/EntangleMain.cpp:328 src/EntangleMain.cpp:407 src/extras/Data.cpp:227
 msgid "Does not exist"
 msgstr "Ist nicht vorhanden"
 
-#: src/EntangleMain.cpp:370
+#: src/EntangleMain.cpp:340
 msgid "Encrypted file has wrong size"
 msgstr "Die verschlüsselte Datei hat falsche Größe"
 
-#: src/EntangleMain.cpp:380
+#: src/EntangleMain.cpp:349
 msgid "Decrypting "
 msgstr "Verschlüsselung "
 
-#: src/EntangleMain.cpp:408
+#: src/EntangleMain.cpp:374
 msgid "Incorrect header size"
 msgstr "Falsche Header-Größe"
 
-#: src/EntangleMain.cpp:472
-msgid "The file is corrupted"
-msgstr "Die Datei ist beschädigt"
-
-#: src/EntangleMain.cpp:473
-msgid "Invalid password or mode"
-msgstr "Ungültige Passwort oder Modus"
-
-#: src/EntangleMain.cpp:491
+#: src/EntangleMain.cpp:422
 msgid "Decrypted file has wrong size"
 msgstr "Entschlüsselte Datei hat falsche Größe"
 
-#: src/EntangleMain.cpp:507
+#: src/EntangleMain.cpp:444
+msgid "The file is corrupted"
+msgstr "Die Datei ist beschädigt"
+
+#: src/EntangleMain.cpp:445
+msgid "Invalid password or mode"
+msgstr "Ungültige Passwort oder Modus"
+
+#: src/EntangleMain.cpp:459
+msgid "Unknown exception"
+msgstr "Unbekannte Ausnahme"
+
+#: src/EntangleMain.cpp:485
 msgid "Cannot rename the result"
 msgstr "Kann das Ergebnis nicht umbenennen"
 
-#: src/EntangleMain.cpp:547
+#: src/EntangleMain.cpp:525
 msgid "Cannot access"
 msgstr "Kein Zugriff auf"
 

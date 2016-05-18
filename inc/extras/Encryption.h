@@ -56,6 +56,8 @@ class RNG
 public:
     //Crypto++ method's wrapper
     static void GenerateBlock(byte * output, size_t size);
+    //Overload for ByteArrays
+    static void GenerateBlock(ByteArray & output);
     //Generates a random number in the given range
     static unsigned int RandomNumber(int min_val, int max_val);
     //Makes up a name for a temp file

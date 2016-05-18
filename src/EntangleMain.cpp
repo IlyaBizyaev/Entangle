@@ -38,7 +38,7 @@ bool Entangle::Compress(bool remove)
 {
     //There archive may be big => let the user choose the destination
     wxString archive_path = a.WhereToSave()+wxFileName::GetPathSeparator()+wxNow()+".zip";
-    //On Windows, filenames cannot conatin the ":" character.
+    //On Windows, filenames cannot contain the ":" character.
     #ifdef _WIN32
     bool has_volume = wxFileName(archive_path).HasVolume();
     archive_path.Replace(":", ".");
@@ -123,10 +123,9 @@ bool Entangle::IsDecompressionNeeded(wxString & fname)
 
     unique_ptr<wxZipEntry> entry(zip.GetNextEntry());
     wxString first_entry = entry->GetName();
-    //If found, should be decompressed!
+
     if(first_entry=="encrypted_by_entangle")
         return true;
-    //Otherwise
     return false;
 }
 
@@ -260,7 +259,7 @@ bool Entangle::ProcessFile(size_t task_index)
     wxString temp_path = RNG::TempName(name);
     Issues::SetFile(name);
 
-    ullong fsize=0; Header head;
+    ullong fsize=0; Header head; bool GoodHeader = false;
 
     /** Opening files **/
     //Opening original file
@@ -283,22 +282,23 @@ bool Entangle::ProcessFile(size_t task_index)
 
     /** <<<<<<<<<<<< MAIN PART >>>>>>>>>>>> **/
 
-    if(u.mode == Encrypt)
+
+    try
     {
         /** ENCRYPTION **/
-        progress.SetText(_("Encrypting ") + name);
-        //Generating and writing the IV
-        RNG::GenerateBlock(iv, iv.size());
-        Out.write(iv, iv.size());
-        //Deriving the key
-        DeriveKey(key, iv, u.password);
-        //Getting file size
-        fsize = file_sizes[task_index];
-        head.file_size = fsize;
-
-        /** Encrypting and writing the header **/
-        try
+        if(u.mode == Encrypt)
         {
+            progress.SetText(_("Encrypting ") + name);
+            //Generating and writing the IV
+            RNG::GenerateBlock(iv);
+            Out.write(iv);
+            //Deriving the key
+            DeriveKey(key, iv, u.password);
+            //Getting file size
+            fsize = file_sizes[task_index];
+            head.file_size = fsize;
+
+            /** Encrypting and writing the header **/
             //New AES Encryption object
             GCM<AES>::Encryption e;
             //Setting user key and random IV
@@ -309,81 +309,47 @@ bool Entangle::ProcessFile(size_t task_index)
             //Encrypting the new header
             ef.ChannelPut("", (const byte*)&head, sizeof(head));
             ef.ChannelMessageEnd("");
-        }
-        catch(CryptoPP::BufferedTransformation::NoChannelSupport& e)
-        {
-            // The tag must go in to the default channel
-            error_text = wxString("NO_CH_SUPPORT: ") + e.what();
-        }
-        catch(CryptoPP::AuthenticatedSymmetricCipher::BadState& e)
-        {
-            error_text = wxString("BAD_STATE: ") + e.what();
-        }
-        catch(CryptoPP::InvalidArgument& e)
-        {
-            error_text = wxString("INV_ARGUMENT: ") + e.what();
-        }
-        catch(...)
-        {
-            error_text = _("Unknown exception");
-        }
 
-        if(!error_text.empty())
-        {
-            Issues::Add(error_text);
-            Out.remove();
-            return false;
-        }
+            /** Encrypting the file **/
+            GCM<AES>::Encryption gcmEncrypt;
+            gcmEncrypt.SetKeyWithIV(head.key, KEY_SIZE, iv, iv.size());
 
-        /** Encrypting the file **/
-        GCM<AES>::Encryption gcmEncrypt;
-        gcmEncrypt.SetKeyWithIV(head.key, KEY_SIZE, iv, iv.size());
+            AuthenticatedEncryptionFilter gcm_f(gcmEncrypt,
+            new EntangleSink(Out), false, TAG_SIZE);
 
-        AuthenticatedEncryptionFilter gcm_f(gcmEncrypt,
-        new EntangleSink(Out), false, TAG_SIZE);
+            BlockReader rdr(fsize);
 
-        BlockReader rdr(fsize);
-
-        do
-        {
-            if(!In.read(buffer, rdr.block_size()))
+            do
             {
-                Issues::Add(In.why_failed());
+                In.read(buffer, rdr.block_size());
+                gcm_f.ChannelPut("", buffer, rdr.block_size());
+                if(EntangleSink::write_failed())
+                {
+                    Issues::Add(_("Does not exist"), Out.GetPath());
+                    return false;
+                }
+                progress.Increase(rdr.block_size());
+            } while(rdr.next());
+
+            gcm_f.MessageEnd();
+
+            //Ensuring that the encrypted file has proper size
+            Out.flush();
+            if(Out.size()!=(fsize+IV_SIZE+sizeof(Header)+(TAG_SIZE<<1)))
+            {
+                Issues::Add(_("Encrypted file has wrong size"));
                 Out.remove();
                 return false;
             }
-            gcm_f.ChannelPut("", buffer, rdr.block_size());
-            if(EntangleSink::write_failed())
-            {
-                Issues::Add(_("Does not exist"), Out.GetPath());
-                return false;
-            }
-            progress.Increase(rdr.block_size());
-        } while(rdr.next());
 
-        gcm_f.MessageEnd();
-
-        //Ensuring that the encrypted file has proper size
-        Out.flush();
-        if(Out.size()!=(fsize+IV_SIZE+sizeof(Header)+(TAG_SIZE<<1)))
-        {
-            Issues::Add(_("Encrypted file has wrong size"));
-            Out.remove();
-            return false;
+            AddTail(Out);
         }
-
-        AddTail(Out);
-    }
-    else
-    {
-        /** DECRYPTION **/
-        progress.SetText(_("Decrypting ") + name);
-        In.read(iv, iv.size());
-        DeriveKey(key, iv, u.password);
-        //Reserving space for retrieved header
-        bool GoodHeader = false;
-        try
+        else /** DECRYPTION **/
         {
+            progress.SetText(_("Decrypting ") + name);
+            In.read(iv);
+            DeriveKey(key, iv, u.password);
+
             /** ----- Working with header ----- **/
             //New AES Decryption object
             GCM<AES>::Decryption d;
@@ -391,7 +357,7 @@ bool Entangle::ProcessFile(size_t task_index)
             d.SetKeyWithIV(key, key.size(), iv, iv.size());
             //Reserving space for header and MAC and reading them
             ByteArray headntag(sizeof(Header)+TAG_SIZE);
-            In.read(headntag, headntag.size());
+            In.read(headntag);
             //Creating new Decryption filter
             AuthenticatedDecryptionFilter df(d, NULL,
                 AuthenticatedDecryptionFilter::MAC_AT_END |
@@ -434,16 +400,7 @@ bool Entangle::ProcessFile(size_t task_index)
 
             do
             {
-                if(!In.read(buffer, rdr.block_size()))
-                {
-                    Issues::Add(In.why_failed());
-                    //On read error, shredding what is already
-                    //decrypted because it may contain
-                    //private information.
-                    Out.shred();
-                    Out.remove();
-                    return false;
-                }
+                In.read(buffer, rdr.block_size());
                 gcm_f.ChannelPut("", buffer, rdr.block_size());
                 if(EntangleSink::write_failed())
                 {
@@ -458,47 +415,68 @@ bool Entangle::ProcessFile(size_t task_index)
 
             gcm_f.MessageEnd();
 
-        }
-        catch(CryptoPP::InvalidArgument& e)
-        {
-            error_text = wxString("INV_ARGUMENT: ") + e.what();
-        }
-        catch(CryptoPP::AuthenticatedSymmetricCipher::BadState& e)
-        {
-            error_text = wxString("BAD_STATE: ") + e.what();
-        }
-        catch(CryptoPP::HashVerificationFilter::HashVerificationFailed& e)
-        {
-            error_text = GoodHeader ? _("The file is corrupted")
-                                    : _("Invalid password or mode");
-        }
-        catch(...)
-        {
-            error_text = _("Unknown exception");
-        }
+            //Ensuring that the decrypted file has the correct size
+            Out.flush();
+            if(Out.size()!=fsize)
+            {
+                Issues::Add(_("Decrypted file has wrong size"));
+                Out.remove();
+                return false;
+            }
 
-        if(!error_text.empty())
-        {
-            Issues::Add(error_text);
-            Out.remove();
-            return false;
         }
-
-        //Ensuring that the decrypted file has the correct size
-        Out.flush();
-        if(Out.size()!=fsize)
-        {
-            Issues::Add(_("Decrypted file has wrong size"));
-            Out.remove();
-            return false;
-        }
-
     }
+    catch(CryptoPP::BufferedTransformation::NoChannelSupport& e)
+    {
+        // The tag must go in to the default channel
+        error_text = wxString("NO_CH_SUPPORT: ") + e.what();
+    }
+    catch(CryptoPP::AuthenticatedSymmetricCipher::BadState& e)
+    {
+        error_text = wxString("BAD_STATE: ") + e.what();
+    }
+    catch(CryptoPP::InvalidArgument& e)
+    {
+        error_text = wxString("INV_ARGUMENT: ") + e.what();
+    }
+    catch(CryptoPP::HashVerificationFilter::HashVerificationFailed& e)
+    {
+        error_text = GoodHeader ? _("The file is corrupted")
+                                : _("Invalid password or mode");
+    }
+    catch(ios_base::failure & e)
+    {
+        Issues::Add(e.what());
+        //On read error, shredding what is already
+        //decrypted because it may contain
+        //private information.
+        if(u.mode==Decrypt) Out.shred();
+        Out.remove();
+        return false;
+    }
+    catch(...)
+    {
+        error_text = _("Unknown exception");
+    }
+
+    if(!error_text.empty())
+    {
+        Issues::Add(error_text);
+        Out.remove();
+        return false;
+    }
+
     /** <<<<<<< FINISHED MAIN PART >>>>>>> **/
 
     //Shred the original file on encryption
     if(u.mode == Encrypt)
-        In.shred(task_index == u.tasks.size()-1);
+    {
+        //Showing a spinning cursor for the lat file
+        bool show_spinner = (task_index == u.tasks.size()-1);
+        if(show_spinner) wxBeginBusyCursor();
+        In.shred();
+        if(show_spinner) wxEndBusyCursor();
+    }
     //Remove the input file
     In.remove();
     //Renaming the temp file
@@ -561,10 +539,9 @@ int Entangle::GetSizes()
 /* Simply adds a random piece of data ('tail') to the end of the file */
 void AddTail(BinFile & target)
 {
-    int tail_size = RNG::RandomNumber(1, 50);
-    ByteArray tail(tail_size);
-    RNG::GenerateBlock(tail, tail_size);
-    target.write(tail, tail_size);
+    ByteArray tail(RNG::RandomNumber(1, 50));
+    RNG::GenerateBlock(tail);
+    target.write(tail);
 }
 
 /* Derives key from the user's password */

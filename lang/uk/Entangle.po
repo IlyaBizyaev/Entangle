@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Entangle 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2016-05-14 21:07+0300\n"
-"PO-Revision-Date: 2016-05-14 21:07+0300\n"
+"POT-Creation-Date: 2016-05-18 19:16+0300\n"
+"PO-Revision-Date: 2016-05-18 19:16+0300\n"
 "Last-Translator: Ilya <bizyaev.game@yandex.ru>\n"
 "Language-Team: Ilya Bizyaev\n"
 "Language: uk\n"
@@ -118,13 +118,13 @@ msgstr[0] " об'єкт"
 msgstr[1] " об'єкта"
 msgstr[2] " об'єктів"
 
-#: src/EntangleMain.cpp:53 src/EntangleMain.cpp:59 src/EntangleMain.cpp:176
-#: src/EntangleMain.cpp:277
+#: src/EntangleMain.cpp:53 src/EntangleMain.cpp:59 src/EntangleMain.cpp:175
+#: src/EntangleMain.cpp:276
 msgid "Cannot create an output file"
 msgstr "Не можу відкрити вихідний файл"
 
 #: src/EntangleMain.cpp:76 src/EntangleMain.cpp:114 src/EntangleMain.cpp:120
-#: src/EntangleMain.cpp:143 src/EntangleMain.cpp:149 src/EntangleMain.cpp:270
+#: src/EntangleMain.cpp:142 src/EntangleMain.cpp:148 src/EntangleMain.cpp:269
 msgid "Cannot open an input file"
 msgstr "Не можу відкрити вхідний файл"
 
@@ -132,75 +132,75 @@ msgstr "Не можу відкрити вхідний файл"
 msgid "Compressing "
 msgstr "Стискаю "
 
-#: src/EntangleMain.cpp:136
+#: src/EntangleMain.cpp:135
 msgid "Remove the archive?"
 msgstr "Видалити архів?"
 
-#: src/EntangleMain.cpp:180
+#: src/EntangleMain.cpp:179
 msgid "Decompressing "
 msgstr "Розпаковую "
 
-#: src/EntangleMain.cpp:190
+#: src/EntangleMain.cpp:189
 msgid "Failed to read an entry"
 msgstr "Помилка читання запису"
 
-#: src/EntangleMain.cpp:210
+#: src/EntangleMain.cpp:209
 msgid "More than 200 files were selected. Compress?"
 msgstr "Вибрано понад 200 файлів. Стиснути?"
 
-#: src/EntangleMain.cpp:213
+#: src/EntangleMain.cpp:212
 msgid "Remove the original files?"
 msgstr "Видалити вихідні файли?"
 
-#: src/EntangleMain.cpp:219
+#: src/EntangleMain.cpp:218
 msgid "Compression failed. Continue without compression?"
 msgstr "Стиснення не вдалося. Продовжити без стиснення?"
 
-#: src/EntangleMain.cpp:249
+#: src/EntangleMain.cpp:248
 msgid "Failed to decompress"
 msgstr "Помилка розпакування"
 
-#: src/EntangleMain.cpp:289
+#: src/EntangleMain.cpp:291
 msgid "Encrypting "
 msgstr "Шифрую "
 
-#: src/EntangleMain.cpp:328 src/EntangleMain.cpp:477 src/extras/Data.cpp:143
-msgid "Unknown exception"
-msgstr "Невідоме виключення"
-
-#: src/EntangleMain.cpp:358 src/EntangleMain.cpp:450 src/extras/Data.cpp:251
+#: src/EntangleMain.cpp:328 src/EntangleMain.cpp:407 src/extras/Data.cpp:227
 msgid "Does not exist"
 msgstr "Не існує"
 
-#: src/EntangleMain.cpp:370
+#: src/EntangleMain.cpp:340
 msgid "Encrypted file has wrong size"
 msgstr "Зашифрований файл має неправильний розмір"
 
-#: src/EntangleMain.cpp:380
+#: src/EntangleMain.cpp:349
 msgid "Decrypting "
 msgstr "Розшифровую "
 
-#: src/EntangleMain.cpp:408
+#: src/EntangleMain.cpp:374
 msgid "Incorrect header size"
 msgstr "Невірний розмір заголовка"
 
-#: src/EntangleMain.cpp:472
-msgid "The file is corrupted"
-msgstr "Файл пошкоджено"
-
-#: src/EntangleMain.cpp:473
-msgid "Invalid password or mode"
-msgstr "Невірний пароль або режим"
-
-#: src/EntangleMain.cpp:491
+#: src/EntangleMain.cpp:422
 msgid "Decrypted file has wrong size"
 msgstr "Розшифрований файл має неправильний розмір"
 
-#: src/EntangleMain.cpp:507
+#: src/EntangleMain.cpp:444
+msgid "The file is corrupted"
+msgstr "Файл пошкоджено"
+
+#: src/EntangleMain.cpp:445
+msgid "Invalid password or mode"
+msgstr "Невірний пароль або режим"
+
+#: src/EntangleMain.cpp:459
+msgid "Unknown exception"
+msgstr "Невідоме виключення"
+
+#: src/EntangleMain.cpp:485
 msgid "Cannot rename the result"
 msgstr "Не можу перейменувати результат"
 
-#: src/EntangleMain.cpp:547
+#: src/EntangleMain.cpp:525
 msgid "Cannot access"
 msgstr "Немає дозволу"
 

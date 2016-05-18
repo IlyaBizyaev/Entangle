@@ -82,51 +82,28 @@ BinFile::~BinFile() { close(); }
 
 wxString BinFile::GetPath() { return path; }
 
-bool BinFile::seek_start()
+void BinFile::seek_start()
 {
-    try
-    {
-        cfile.seekp(0, ios::beg);
-    }
-    catch(ios_base::failure & e)
-    {
-        fail_reason = e.what();
-        return false;
-    }
-    return true;
+    cfile.seekp(0, ios::beg);
 }
 
 //Reads data from the file
-bool BinFile::read(byte* data, int size)
+void BinFile::read(byte* data, int size)
 {
-    if(!(mode & ios_base::in)) return false;
-    try
-    {
-        cfile.read((char*)data, size);
-    }
-    catch(ios_base::failure & e)
-    {
-        fail_reason = e.what();
-        return false;
-    }
-    return true;
+    assert(mode & ios_base::in);
+    cfile.read((char*)data, size);
 }
 
+void BinFile::read(ByteArray & data) { this->read(data, data.size()); }
+
 //Writes data to the file
-bool BinFile::write(const byte* data, int size)
+void BinFile::write(const byte* data, int size)
 {
-    if(!(mode & ios_base::out)) return false;
-    try
-    {
-        cfile.write((const char*)(data), size);
-    }
-    catch(ios_base::failure & e)
-    {
-        fail_reason = e.what();
-        return false;
-    }
-    return true;
+    assert(mode & ios_base::out);
+    cfile.write((const char*)(data), size);
 }
+
+void BinFile::write(ByteArray & data) { this->write(data, data.size()); }
 
 void BinFile::flush() {  cfile.flush(); }
 
@@ -140,7 +117,6 @@ bool BinFile::rename(const wxString & new_name)
     }
     catch(...)
     {
-        fail_reason = _("Unknown exception");
         return false;
     }
     return true;
@@ -170,7 +146,7 @@ bool BinFile::remove()
 /* it is close to impossible to securely shred files! */
 /* Also, shredding big files may harm the storage device: e.g. SSDs/ */
 /* USE AT YOUR OWN RISK! */
-bool BinFile::shred(bool show_spinner)
+bool BinFile::shred()
 {
     //Opening this file for writing
     if(!(mode & ios_base::out))
@@ -179,14 +155,13 @@ bool BinFile::shred(bool show_spinner)
 
     static ByteArray buffer(BUF_SIZE);
 
-    if(show_spinner) wxBeginBusyCursor();
     /**--------------------------------------------**/
     for(int i=0; i<10; ++i) // 10 iterations
     {
         //Generating random data to write
-        RNG::GenerateBlock(buffer, BUF_SIZE);
+        RNG::GenerateBlock(buffer);
         //Moving to the beginning
-        if(!seek_start()) return false;
+        seek_start();
         //Overwriting the data,
         //ensuring it is written, not cached
         BlockReader rdr(size());
@@ -198,7 +173,6 @@ bool BinFile::shred(bool show_spinner)
         wxYield(); //For big files
     }
     /**--------------------------------------------**/
-    if(show_spinner) wxEndBusyCursor();
     //Closing the file
     close();
     return true;
@@ -215,7 +189,9 @@ bool BinFile::is_open() { return IsOk; }
 //Returns error text on fail
 wxString BinFile::why_failed()
 {
-    return fail_reason;
+    wxString to_ret = fail_reason;
+    fail_reason = "";
+    return to_ret;
 }
 
 //Closes the file
