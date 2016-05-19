@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <link href='https://fonts.googleapis.com/css?family=Architects+Daughter' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/github-light.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print">
+
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+    <title>Entangle by IlyaBizyaev</title>
+  </head>
+
+  <body>
+    <header>
+      <div class="inner">
+        <h1>Entangle</h1>
+        <h2>Simple and user-friendly application for data encryption</h2>
+        <a href="https://github.com/IlyaBizyaev/Entangle" class="button"><small>View project on</small> GitHub</a>
+      </div>
+    </header>
+
+    <div id="content-wrapper">
+      <div class="inner clearfix">
+        <section id="main-content">
+          <h1>
+<a id="entangle-v-10" class="anchor" href="#entangle-v-10" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Entangle v. 1.0</h1>
+
+<p><img src="http://entangle.ucoz.net/text_logo3.png" alt="Entangle Logo"><br>
+<img src="http://entangle.ucoz.net/Screenshots/Entangle_1.0.png" alt="Screenshot">  </p>
+
+<h2>
+<a id="description" class="anchor" href="#description" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Description</h2>
+
+<p><strong>Entangle</strong> is a simple application, designed to help users protect their private data in a few clicks using AES encryption.<br>
+It can also be used to make backups, as it supports ZIP compression.<br>
+<strong>Entangle</strong> is built using wxWidgets and Crypto++ libraries, which makes it cross-platform.</p>
+
+<h3>
+<a id="features" class="anchor" href="#features" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Features:</h3>
+
+<ul>
+<li>User-friendly</li>
+<li>Multilingual</li>
+<li>Cross-platform</li>
+<li>Lightweight</li>
+<li>Two modes: GUI and console</li>
+</ul>
+
+<h2>
+<a id="building-from-sources" class="anchor" href="#building-from-sources" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Building from sources</h2>
+
+<p><a href="https://travis-ci.org/IlyaBizyaev/Entangle"><img src="https://travis-ci.org/IlyaBizyaev/Entangle.svg?branch=master" alt="Build Status"></a></p>
+
+<h3>
+<a id="linux" class="anchor" href="#linux" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Linux</h3>
+
+<p>To build the application on Linux, you need to install the following packages:</p>
+
+<ul>
+<li>
+<code>libwxgtk3.0</code> and <code>libwxgtk3.0-dev</code> for wxWidgets</li>
+<li>
+<code>libcrypto++9</code> and <code>libcrypto++-dev</code> for Crypto++<br>
+It is also possible to use manually built libraries.</li>
+</ul>
+
+<p><strong>Note.</strong> On some distributions, Cryto++ packages may be called <code>libcryptopp</code>.</p>
+
+<h3>
+<a id="windows" class="anchor" href="#windows" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Windows</h3>
+
+<p>On Windows, you have to download wxWidgets and Crypto++ libraries from official websites and build them manually.<br>
+<strong>Notes:</strong><br>
+For wxWidgets, it is recommended to use MSYS and run <code>make install</code>.<br>
+For Crypto++, it is recommended to locate it at <code>C:\cryptopp</code>.<br>
+You may have to edit the Makefile otherwise.</p>
+
+<p><strong>Supported compilers:</strong> GCC (TDM-GCC on Windows).</p>
+
+<h3>
+<a id="compilation" class="anchor" href="#compilation" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Compilation</h3>
+
+<pre><code>cd ~/Entangle/ # Depends on the location
+make
+sudo make install
+make clean
+</code></pre>
+
+<h2>
+<a id="note" class="anchor" href="#note" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Note</h2>
+
+<p>Any feedback, improvements and fixes are appreciated!</p>
+
+<h2>
+<a id="license" class="anchor" href="#license" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>License</h2>
+
+<p>Entangle is distributed under the GNU GPL v3 license.
+But please, notify me if you want to use this code in any projects.</p>
+
+<h2>
+<a id="thanks-to" class="anchor" href="#thanks-to" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Thanks to...</h2>
+
+<p>...<strong>doublemax</strong> and <strong>DenDev</strong> for answering my wxQuestions :)</p>
+
+<p>...<strong>Jean-Pierre Münch</strong>, <strong>Jeffrey Walton</strong> and <strong>Mobile Mouse</strong> for help with the encryption.</p>
+
+<p>...<strong>RostakaGmfun</strong> for testing and Ukrainian translation.</p>
+
+<h2>
+<a id="copyright" class="anchor" href="#copyright" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Copyright</h2>
+
+<p>Copyright (C) Ilya Bizyaev <a href="mailto:bizyaev@lyceum62.ru">bizyaev@lyceum62.ru</a>, 2015-2016.</p>
+        </section>
+
+        <aside id="sidebar">
+          <a href="https://github.com/IlyaBizyaev/Entangle/zipball/master" class="button">
+            <small>Download</small>
+            .zip file
+          </a>
+          <a href="https://github.com/IlyaBizyaev/Entangle/tarball/master" class="button">
+            <small>Download</small>
+            .tar.gz file
+          </a>
+
+          <p class="repo-owner"><a href="https://github.com/IlyaBizyaev/Entangle"></a> is maintained by <a href="https://github.com/IlyaBizyaev">IlyaBizyaev</a>.</p>
+
+          <p>This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the Architect theme by <a href="https://twitter.com/jasonlong">Jason Long</a>.</p>
+        </aside>
+      </div>
+    </div>
+
+  
+  </body>
+</html>
