@@ -1,19 +1,21 @@
 # Entangle v. 1.0
-![Entangle Logo](http://entangle.ucoz.net/text_logo3.png)  
-![Screenshot](http://entangle.ucoz.net/Screenshots/Entangle_1.0.png)  
+![Logo](http://ilyabizyaev.github.io/Entangle/images/logo_with_text.png)  
+![Screenshot](http://ilyabizyaev.github.io/Entangle/images/Entangle_1.0.png)  
 
 ## Description
-**Entangle** is a simple application, designed to help users protect their private data in a few clicks using AES encryption.  
-It can also be used to make backups, as it supports ZIP compression.  
-**Entangle** is built using wxWidgets and Crypto++ libraries, which makes it cross-platform.
+**Entangle** is a simple and user-friendly application, designed to help users protect their private data in a few clicks using AES encryption. It can also be used to make backups, as it supports ZIP compression.  
+Entangle is free and open source. It is built using wxWidgets and Crypto++ libraries, which makes it flexible and cross-platform.  
 ### Features:
-- User-friendly
+- User-friendly minimalistic interface
+- Supports Drag & Drop.
 - Multilingual
 - Cross-platform
 - Lightweight
 - Two modes: GUI and console
 
-**Project website:** http://entangle.ucoz.net/
+**Supported platforms:** Windows, Linux.  
+**License:** GPL v3  
+**Project website:** http://ilyabizyaev.github.io/Entangle/
 ## Building from sources
 [![Build Status](https://travis-ci.org/IlyaBizyaev/Entangle.svg?branch=master)](https://travis-ci.org/IlyaBizyaev/Entangle)
 ### Linux
@@ -41,11 +43,9 @@ sudo make install
 make clean
 ```
 
-## Note
+## Notes
 Any feedback, improvements and fixes are appreciated!
-## License
-Entangle is distributed under the GNU GPL v3 license.
-But please, notify me if you want to use this code in any projects.
+Also, please, notify me if you want to use this code in any projects.
 ## Thanks to...
 ...**doublemax** and **DenDev** for answering my wxQuestions :)
 
