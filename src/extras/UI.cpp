@@ -61,7 +61,6 @@ bool DroppedFilesReciever::OnDropFiles(wxCoord WXUNUSED(x), wxCoord WXUNUSED(y),
 
 
 /** UNIVERSAL **/
-
 /* Asker's methods */
 bool Asker::Ask(const wxString & question)
 {
@@ -81,8 +80,13 @@ wxString Asker::WhereToSave()
     if(HasGUI)
     {
         wxDirDialog dlg(NULL, _("Where to save the result?"));
-        dlg.ShowModal();
-        return dlg.GetPath();
+        wxString res;
+        do {
+            dlg.ShowModal();
+            res = dlg.GetPath();
+        } while(res.IsEmpty());
+        AddSlashIfNecessary(res);
+        return res;
     }
     else
     {
@@ -99,6 +103,7 @@ wxString Asker::WhereToSave()
             }
         }
         while(!wxDirExists(res));
+        AddSlashIfNecessary(res);
         return res;
     }
 }

@@ -23,7 +23,12 @@ UserData::UserData(wxArrayString g_tasks, wxString g_password, MODE g_mode)
     //Collecting directories (because we may need to remove them)
     for(size_t i=0; i<g_tasks.size(); ++i)
         if(wxDirExists(g_tasks[i]))
+        {
+            //By wxFileName's logics, there should be a trailing
+            //separator at the end of directory's path.
+            AddSlashIfNecessary(g_tasks[i]);
             dirs.push_back(g_tasks[i]);
+        }
     tasks = Traverse(g_tasks);
 }
 
@@ -200,6 +205,12 @@ void BinFile::close()
     if(IsOk)
         cfile.close();
     path = ""; IsOk = false;
+}
+
+void AddSlashIfNecessary(wxString & path)
+{
+    if(!path.EndsWith(wxFileName::GetPathSeparator()))
+        path+=wxFileName::GetPathSeparator();
 }
 
 ullong GetFileSize(const wxString & path)

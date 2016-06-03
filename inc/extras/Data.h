@@ -93,8 +93,8 @@ private:
     bool IsOk;
 };
 
+void AddSlashIfNecessary(wxString & path);
 ullong GetFileSize(const wxString & path);
-
 //A function that traverses the path array (expands all paths)
 wxArrayString Traverse (wxArrayString & input);
 

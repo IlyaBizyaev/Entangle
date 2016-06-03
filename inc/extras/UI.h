@@ -25,7 +25,6 @@ using namespace std;
 /* Cross-platform console output */
 void Write(const wxString & message);
 
-
 /** GUI **/
 
 /* Accepts dropped files */
@@ -41,7 +40,6 @@ private:
 
 
 /** UNIVERSAL **/
-
 /* Asks yes/no questions and requests path */
 class Asker
 {

@@ -13,6 +13,7 @@
 #include <climits>              //Maximum variable values
 #include <cassert>              //Assertions
 
+#include <wx/log.h>             //Temporary disabling logging
 #include <wx/wfstream.h>        //File streams
 #include <wx/zipstrm.h>         //Working with ZIP
 
@@ -37,12 +38,12 @@ progress(Progress(frame)), a(Asker(frame != NULL)) { }
 bool Entangle::Compress(bool remove)
 {
     //There archive may be big => let the user choose the destination
-    wxString archive_path = a.WhereToSave()+wxFileName::GetPathSeparator()+wxNow()+".zip";
-    //On Windows, filenames cannot contain the ":" character.
+    wxString archive_path = a.WhereToSave()+wxNow()+".zip";
+    //On Windows, filenames cannot contain the ":" character...
     #ifdef _WIN32
     bool has_volume = wxFileName(archive_path).HasVolume();
     archive_path.Replace(":", ".");
-    //But the path *may* contain this char in a volume name.
+    //... except for a volume name.
     if(has_volume)
         archive_path.Replace(".", ":", false);
     #endif // _WIN32
@@ -68,7 +69,18 @@ bool Entangle::Compress(bool remove)
     {
         wxString fname = u.tasks[i];
         if(fname=="SKIP") continue;
-        zip.PutNextEntry(fname);
+        //Make the path absolute and remove ':' in 'X:\'
+        wxFileName fn(fname);
+        if(fn.IsRelative())
+        {
+            fn.MakeAbsolute();
+            fname = fn.GetFullPath();
+        }
+        wxString entry = fname;
+        #ifdef _WIN32
+            entry.Replace(":", ".", false);
+        #endif // _WIN32
+        zip.PutNextEntry(entry);
         {
             wxFileInputStream in(fname);
             if(!in.IsOk())
@@ -88,14 +100,7 @@ bool Entangle::Compress(bool remove)
     //Removing empty directories (if left)
     if(remove)
         for(size_t i=0; i<u.dirs.GetCount(); ++i)
-	    {
-            //By wxFileName's logics, there should be a trailing
-            //separator at the end of directory's path.
-            if(!u.dirs[i].EndsWith(wxFileName::GetPathSeparator()))
-                u.dirs[i]+=wxFileName::GetPathSeparator();
             wxFileName::Rmdir(u.dirs[i], wxPATH_RMDIR_FULL);
-	    }
-
 
     //Previous tasks do not exist any more
     u.tasks.Clear(); file_sizes.clear();
@@ -121,7 +126,9 @@ bool Entangle::IsDecompressionNeeded(wxString & fname)
         return false;
     }
 
+    wxLogNull logNo; //Remove unwanted "invalid zip" message
     unique_ptr<wxZipEntry> entry(zip.GetNextEntry());
+    if(entry == NULL) return false;
     wxString first_entry = entry->GetName();
 
     if(first_entry=="encrypted_by_entangle")
@@ -153,19 +160,30 @@ bool Entangle::Decompress(wxString & arc_name)
 
         ByteArray buffer(BUF_SIZE);
 
-        //Depending on the system, we may either need to just add a slash
-        //or to ask where to save the unpacked files.
-        #ifdef _WIN32
-        wxString location = a.WhereToSave();
-        #else
-        wxString location = "/";
-        #endif // _WIN32
-
+        wxString location = "";
 
         //For each entry
         while(entry.reset(zip.GetNextEntry()), entry.get() != NULL)
         {
-            wxString fname = location + entry->GetName();
+            wxString fname = entry->GetName();
+            fname.Replace(".", ":", false);
+            if(wxFileName(fname).HasVolume())
+            {
+                #ifndef _WIN32
+                if(location=="")
+                    location=a.WhereToSave();
+                #endif // not _WIN32
+            }
+            else
+            {
+                fname.Replace(":", ".", false);
+                #ifdef _WIN32
+                if(location=="")
+                    location=a.WhereToSave();
+                #endif // _WIN32
+            }
+
+            fname = location + fname;
             //Creating directory where the file was located before compression
             wxFileName(fname).Mkdir(wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
             //Creating the file

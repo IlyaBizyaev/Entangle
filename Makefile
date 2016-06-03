@@ -50,12 +50,14 @@ test:
 	./Entangle -m=e -p=superdupersecret ./test
 	./Entangle -m=d -p=superdupersecret ./test
 	@for file in ./test/*; do\
-		printf "Comparing $$file and ./src$${file#./test}..."; \
-		if cmp --silent $$file "./src$${file#./test}"; then \
-			echo " PASS!"; \
-		else \
-			echo " FAIL!"; \
-		fi; \
+        if [ -f $$file ]; then \
+		    printf "Comparing $$file and ./src$${file#./test}..."; \
+		    if cmp --silent $$file "./src$${file#./test}"; then \
+			    echo " PASS!"; \
+		    else \
+			    echo " FAIL!"; \
+		    fi; \
+        fi; \
 	done
 	rm -r ./test
 install:
