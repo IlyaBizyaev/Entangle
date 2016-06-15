@@ -1,5 +1,5 @@
 ### GENERAL ###
-CXX=g++
+CXX?=g++
 SOURCES=$(wildcard src/*.cpp) $(wildcard src/extras/*.cpp)
 OBJECTS:=$(SOURCES:%.cpp=%.o)
 LANG=$(wildcard lang/*/Entangle.po)

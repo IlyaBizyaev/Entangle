@@ -1,5 +1,5 @@
 language: cpp
-compiler: $CXX
+compiler: g++
 os: linux
 
 before_install:
