@@ -17,7 +17,6 @@ Entangle is free and open source. It is built using wxWidgets and Crypto++ libra
 **License:** GPL v3  
 **Project website:** http://ilyabizyaev.github.io/Entangle/
 ## Building from sources
-[![Build Status](https://travis-ci.org/IlyaBizyaev/Entangle.svg?branch=master)](https://travis-ci.org/IlyaBizyaev/Entangle)
 ### Linux
 To build the application on Linux, you need to install the following packages:
 - `libwxgtk3.0` and `libwxgtk3.0-dev` for wxWidgets
