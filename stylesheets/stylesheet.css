@@ -560,8 +560,8 @@ aside a.win {
   background: transparent url(../images/windows-button.png) 0 0 no-repeat;
 }
 
-aside a.deb {
-  background: transparent url(../images/debian-button.png) 0 0 no-repeat;
+aside a.ubuntu {
+  background: transparent url(../images/ubuntu-button.png) 0 0 no-repeat;
 }
 
 code, pre {
